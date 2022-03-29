@@ -1,0 +1,140 @@
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: WP SVG images\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2022-03-01 13:50+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: \n"
+"Language: \n"
+"Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Loco https://localise.biz/\n"
+"X-Loco-Version: 2.5.8; wp-5.9\n"
+"X-Domain: wpsvg"
+
+#: upsell.php:24
+msgid "Activate"
+msgstr ""
+
+#: wp-svg-images.php:228
+msgid "disable SVG upload"
+msgstr ""
+
+#: wp-svg-images.php:226
+msgid "enable sanitized SVG upload"
+msgstr ""
+
+#: wp-svg-images.php:227
+msgid "enable unrestricted SVG upload"
+msgstr ""
+
+#: wp-svg-images.php:212
+#, php-format
+msgid ""
+"Every SVG image is an XML file, which can contain %1$smalicious code%2$s, "
+"that can lead to %1$sXSS or Injection attacks%2$s.%3$sBelow you can decide "
+"which user roles (with upload capability) will be able to upload SVG images "
+"and also if their uploads will be sanitized."
+msgstr ""
+
+#. Description of the plugin
+msgid "Full SVG Media support in WordPress"
+msgstr ""
+
+#: wp-svg-images.php:94
+msgid "Go to Settings"
+msgstr ""
+
+#: wp-svg-images.php:92
+#, php-format
+msgid ""
+"Hey, WP SVG images has some new settings! Activate SVG sanitization and "
+"manage permissions by going to the new %s"
+msgstr ""
+
+#: upsell.php:21
+msgid "Install now"
+msgstr ""
+
+#: upsell.php:20
+msgid "Installing ..."
+msgstr ""
+
+#: upsell.php:13
+msgid "Is your website slow?"
+msgstr ""
+
+#: upsell.php:17
+msgid "Optimize all images automatically"
+msgstr ""
+
+#: wp-svg-images.php:213 wp-svg-images.php:257
+msgid "Read more"
+msgstr ""
+
+#: wp-svg-images.php:264
+msgid "Save"
+msgstr ""
+
+#: wp-svg-images.php:211
+msgid "Security notice"
+msgstr ""
+
+#: wp-svg-images.php:178
+msgid "Settings"
+msgstr ""
+
+#: wp-svg-images.php:92
+msgid "Settings page"
+msgstr ""
+
+#: wp-svg-images.php:207
+msgid "Settings saved."
+msgstr ""
+
+#: upsell.php:28
+msgid "Shortpixel activated!"
+msgstr ""
+
+#: upsell.php:10
+msgid "ShortPixel Image Optimizer"
+msgstr ""
+
+#: wp-svg-images.php:213
+#, php-format
+msgid ""
+"Sometimes you may need to upload some special SVG that includes your "
+"JavaScript code or other elements that are normally removed during "
+"sanitization - in that case, you can temporarily %1$senable unrestricted SVG "
+"upload%2$s if you are sure about your SVG code. Otherwise, it is recommended "
+"to use only the %1$senable sanitized SVG upload%2$s option."
+msgstr ""
+
+#: wp-svg-images.php:168 wp-svg-images.php:169 wp-svg-images.php:205
+msgid "SVG images"
+msgstr ""
+
+#: wp-svg-images.php:119
+msgid "This SVG can not be sanitized!"
+msgstr ""
+
+#. Name of the plugin
+msgid "WP SVG images"
+msgstr ""
+
+#: wp-svg-images.php:93
+#, php-format
+msgid "WP SVG images in now a part of the %s family."
+msgstr ""
+
+#: wp-svg-images.php:214
+#, php-format
+msgid ""
+"You should %1$senable unrestricted SVG upload%2$s permanently only if you "
+"are absolutely sure that all users within this user role are responsible and "
+"experienced enough to detect malicious SVG code by themselves."
+msgstr ""

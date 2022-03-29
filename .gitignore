@@ -1,0 +1,10 @@
+vendor
+composer.lock
+.DS_Store
+.env.testing
+/bin/.
+/composer.phar
+.env.local
+/build/
+/wordpress/
+/travis_output/
