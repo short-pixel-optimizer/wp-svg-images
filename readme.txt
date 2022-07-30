@@ -4,8 +4,8 @@ Donate link: https://www.paypal.me/resizeImage
 Tags: svg, svg support, svg upload, sanitization
 Requires at least: 3.0.1
 Requires PHP: 5.6.40
-Tested up to: 5.9
-Stable tag: 4.0
+Tested up to: 6.0
+Stable tag: 4.1
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -67,6 +67,11 @@ function my_custom_allowed_svg_attributes( $attributes ){
 
 
 == Changelog ==
+
+= 4.1 =
+Release date: July 30th, 2022
+* auto hide SVG settings notice once you visit the settings page
+* fix admin url in button and link in SVG settings notice
 
 = 4.0 =
 Release date: March 29th, 2022

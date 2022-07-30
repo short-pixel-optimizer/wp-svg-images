@@ -3,7 +3,7 @@
 	Plugin Name:	WP SVG Images
 	Plugin URI:		https://shortpixel.com/
 	Description:	Full SVG Media support in WordPress
-	Version:		4.0
+	Version:		4.1
 	Author:			ShortPixel
 	Author URI:		https://shortpixel.com/
     GitHub Plugin URI: https://github.com/short-pixel-optimizer/wp-svg-images
@@ -93,9 +93,9 @@ if( ! class_exists('WPSVG') ){
 			if( ! get_user_meta( get_current_user_id(), 'wpsvg_notice_dismissed' ) ){
 				if( function_exists('get_current_screen') && isset( get_current_screen()->id ) && in_array( get_current_screen()->id, array( 'plugins', 'plugin-install', 'upload', 'attachment' ) ) ){ ?>
 					<div class="wpsvg-notice notice notice-success is-dismissible">
-						<p><?php printf( esc_html__( 'Hey, WP SVG images has some new settings! Activate SVG sanitization and manage permissions by going to the new %s', 'wpsvg' ), '<a href="/wp-admin/options-general.php?page=wp-svg-images.php">' . esc_html__( 'Settings page', 'wpsvg' ) . '</a>' ) ?></p>
+						<p><?php printf( esc_html__( 'Hey, WP SVG images has some new settings! Activate SVG sanitization and manage permissions by going to the new %s', 'wpsvg' ), '<a href="' . admin_url('options-general.php?page=wp-svg-images.php') . '">' . esc_html__( 'Settings page', 'wpsvg' ) . '</a>' ) ?></p>
 						<p><small style="opacity:.9"><?php printf( esc_html__( 'WP SVG images in now a part of the %s family.', 'wpsvg' ), '<a href="https://shortpixel.com/api-tools" target="_blank">ShortPixel</a>' ) ?></small></p>
-						<p><a href="/wp-admin/options-general.php?page=wp-svg-images.php" class="button button-primary"><?php esc_html_e( 'Go to Settings', 'wpsvg' ) ?></a></p>
+						<p><a href="<?php echo admin_url('options-general.php?page=wp-svg-images.php') ?>" class="button button-primary"><?php esc_html_e( 'Go to Settings', 'wpsvg' ) ?></a></p>
 					</div>
 					<script>
 					jQuery(document).ready(function($){
@@ -192,6 +192,8 @@ if( ! class_exists('WPSVG') ){
 			global $wp_roles;
 
 			if( get_current_screen()->id != $this->plugin_admin_page ) return;
+
+			add_user_meta( get_current_user_id(), 'wpsvg_notice_dismissed', 1, true );
 
 			$show_update_notice = false;
 			if( isset( $_POST['plugin_sent'] ) ){
