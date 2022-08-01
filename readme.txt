@@ -69,9 +69,10 @@ function my_custom_allowed_svg_attributes( $attributes ){
 == Changelog ==
 
 = 4.1 =
-Release date: July 30th, 2022
-* auto hide SVG settings notice once you visit the settings page
-* fix admin url in button and link in SVG settings notice
+Release date: August 1st, 2022
+* Tweak: auto hide the settings notice after visiting the settings page;
+* Compat: tested the compatibility with WordPress 6.0;
+* Fix: the settings link and button from the notice now work fine on all WordPress installs.
 
 = 4.0 =
 Release date: March 29th, 2022
