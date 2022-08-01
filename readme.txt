@@ -4,8 +4,8 @@ Donate link: https://www.paypal.me/resizeImage
 Tags: svg, svg support, svg upload, sanitization
 Requires at least: 3.0.1
 Requires PHP: 5.6.40
-Tested up to: 5.9
-Stable tag: 4.0
+Tested up to: 6.0
+Stable tag: 4.1
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -67,6 +67,12 @@ function my_custom_allowed_svg_attributes( $attributes ){
 
 
 == Changelog ==
+
+= 4.1 =
+Release date: August 1st, 2022
+* Tweak: auto hide the settings notice after visiting the settings page;
+* Compat: tested the compatibility with WordPress 6.0;
+* Fix: the settings link and button from the notice now work fine on all WordPress installs.
 
 = 4.0 =
 Release date: March 29th, 2022
