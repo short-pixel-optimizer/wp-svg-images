@@ -3,7 +3,7 @@
 	Plugin Name:	WP SVG Images
 	Plugin URI:		https://shortpixel.com/
 	Description:	Full SVG Media support in WordPress
-	Version:		4.1
+	Version:		4.2
 	Author:			ShortPixel
 	Author URI:		https://shortpixel.com/
     GitHub Plugin URI: https://github.com/short-pixel-optimizer/wp-svg-images
@@ -405,9 +405,14 @@ if( ! class_exists('WPSVG') ){
 			if( $svg ){
 				$attributes = $svg->attributes();
 				if( isset( $attributes->width, $attributes->height ) ){
-					$width = floatval( $attributes->width );
-					$height = floatval( $attributes->height );
-				}elseif( isset( $attributes->viewBox ) ){
+					if( substr( trim( $attributes->width ), -1 ) != '%' ){
+						$width = floatval( $attributes->width );
+					}
+					if( substr( trim( $attributes->height ), -1 ) != '%' ){
+						$height = floatval( $attributes->height );
+					}
+				}
+				if( ( ! $width || ! $height ) && isset( $attributes->viewBox ) ){
 					$sizes = explode( ' ', $attributes->viewBox );
 					if( isset( $sizes[2], $sizes[3] ) ){
 						$width = floatval( $sizes[2] );
