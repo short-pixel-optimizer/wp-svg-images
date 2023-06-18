@@ -6,7 +6,8 @@
 	Version:		4.2
 	Author:			ShortPixel
 	Author URI:		https://shortpixel.com/
-    GitHub Plugin URI: https://github.com/short-pixel-optimizer/wp-svg-images
+ 	GitHub Plugin URI: https://github.com/short-pixel-optimizer/wp-svg-images
+  	Primary Branch: main
 	Text Domain:	wpsvg
 	Domain Path:	/languages
 */
