@@ -109,7 +109,12 @@ if( ! class_exists('WPSVG') ){
 		}
 
 		function wp_handle_upload_prefilter( $file ){
-			if( $file['type'] === 'image/svg+xml' ){
+
+			// Security:  form data can be faked, including the filetype. Check tmpfile.
+			$file_type = mime_content_type($file['tmp_name']);
+
+			if( $file_type == 'image/svg+xml' )
+			{
 				$user = wp_get_current_user();
 				$roles = (array)$user->roles;
 				$unrestricted = false;
@@ -210,9 +215,9 @@ if( ! class_exists('WPSVG') ){
 			} ?>
 			<div class="wrap">
 				<h2><?php _e( 'SVG images', 'wpsvg' ) ?></h2>
-				
+
 				<?php if( $show_update_notice ) echo '<div class="below-h2 updated"><p>' . __( 'Settings saved.', 'wpsvg' ) . '</p></div>'; ?>
-				
+
 				<div class="postbox" style="margin-top:10px">
 					<div class="inside" style="padding-bottom:2px">
 						<h3><?php esc_html_e( 'Security notice', 'wpsvg' ) ?></h3>
