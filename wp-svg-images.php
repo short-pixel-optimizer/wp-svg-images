@@ -1,15 +1,15 @@
 <?php
 /*
-	Plugin Name:	WP SVG Images
-	Plugin URI:		https://shortpixel.com/
-	Description:	Full SVG Media support in WordPress
-	Version:		4.2
-	Author:			ShortPixel
-	Author URI:		https://shortpixel.com/
- 	GitHub Plugin URI: https://github.com/short-pixel-optimizer/wp-svg-images
-  	Primary Branch: main
-	Text Domain:	wpsvg
-	Domain Path:	/languages
+	Plugin Name:		WP SVG Images
+	Plugin URI:			https://shortpixel.com/
+	Description:		Full SVG Media support in WordPress
+	Version:	  		4.2
+	Author:		  		ShortPixel
+	Author URI:			https://shortpixel.com/
+ 	GitHub Plugin URI:	https://github.com/short-pixel-optimizer/wp-svg-images
+	Primary Branch: main
+	Text Domain:		wpsvg
+	Domain Path:		/languages
 */
 
 defined( 'ABSPATH' ) ||	exit;
@@ -71,6 +71,14 @@ if( ! class_exists('WPSVG') ){
 			add_action( 'wp_ajax_wpsvg_notice_dismissed', array( $this, 'wpsvg_notice_dismissed' ) );
 
 			add_action( 'admin_init', array( $this, 'upsell' ) );
+			add_filter( 'wp_all_import_image_mime_type', array( $this, 'wp_all_import_svgs' ), 10, 2 );
+		}
+
+		function wp_all_import_svgs( $mime_type, $image_filepath ){
+			if( empty( $mime_type ) && ( substr( $image_filepath, -4 ) == '.svg' || substr( $image_filepath, -5 ) == '.svgz' ) ){
+				return 'image/svg+xml';
+			}
+			return $mime_type;
 		}
 
 		function upsell(){
