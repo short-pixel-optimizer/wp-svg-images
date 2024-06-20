@@ -4,8 +4,8 @@ Donate link: https://www.paypal.me/resizeImage
 Tags: svg, svg support, svg upload, sanitization
 Requires at least: 3.0.1
 Requires PHP: 5.6.40
-Tested up to: 6.2
-Stable tag: 4.2
+Tested up to: 6.6
+Stable tag: 4.3
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -32,6 +32,7 @@ WP SVG Images Plugin is an **easy-to-use and lightweight plugin** that allows yo
 = Recommended plugins =
 This plugin is supported & maintained by [ShortPixel](https://shortpixel.com/).
 Other popular plugins by ShortPixel: 
+[FastPixel Caching](https://wordpress.org/plugins/fastpixel-website-accelerator/) - WP Optimization made easy
 [ShortPixel Image Optimizer](https://wordpress.org/plugins/shortpixel-image-optimiser/) - Image optimization & compression for all the images on your website, including WebP delivery – ShortPixel Image Optimizer.
 [ShortPixel Adaptive Images](https://wordpress.org/plugins/shortpixel-adaptive-images/) - On-the-fly image optimization & CDN delivery.
 [Enable Media Replace](https://wordpress.org/plugins/enable-media-replace/) - Easily replace images or files in Media Library.
@@ -67,12 +68,17 @@ function my_custom_allowed_svg_attributes( $attributes ){
 
 
 == Changelog ==
+= 4.3 =
+Release date: June 20th, 2024
+* Fix: Patched a Stored Cross-Site Scripting vulnerability found by Colin Xu and responsibly disclosed by the WordFence team;
+* Compat: Added compatibity with WP All Import plugin;
+* Compat: Tested with the latest versions of WordPress (6.6) and PHP (8.3).
 
 = 4.2 =
 Release date: April 6th, 2023
-* Tested on WordPress 6.2;
-* Updated SVG sanitizer scripts;
-* Skip percentage width and height when reading SVG dimensions.
+* Compat: Tested on WordPress 6.2;
+* Compat: Updated SVG sanitizer scripts;
+* Tweak: Skip percentage width and height when reading SVG dimensions.
 
 = 4.1 =
 Release date: August 1st, 2022
