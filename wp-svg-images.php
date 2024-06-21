@@ -99,6 +99,9 @@ if( ! class_exists('WPSVG') ){
 		}
 
 		function admin_notices(){
+			if (! current_user_can('manage_options')) {
+				 return false; 
+			}
 			if( ! get_user_meta( get_current_user_id(), 'wpsvg_notice_dismissed' ) ){
 				if( function_exists('get_current_screen') && isset( get_current_screen()->id ) && in_array( get_current_screen()->id, array( 'plugins', 'plugin-install', 'upload', 'attachment' ) ) ){ ?>
 					<div class="wpsvg-notice notice notice-success is-dismissible">
