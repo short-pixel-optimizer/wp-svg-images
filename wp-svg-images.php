@@ -3,7 +3,7 @@
 	Plugin Name:		WP SVG Images
 	Plugin URI:		https://shortpixel.com/
 	Description:		Full SVG Media support in WordPress
-	Version:	  	4.3
+	Version:	  	4.4
 	Author:		  	ShortPixel
 	Author URI:		https://shortpixel.com/
  	GitHub Plugin URI:	https://github.com/short-pixel-optimizer/wp-svg-images
@@ -99,6 +99,9 @@ if( ! class_exists('WPSVG') ){
 		}
 
 		function admin_notices(){
+			if (! current_user_can('manage_options')) {
+				 return false;
+			}
 			if( ! get_user_meta( get_current_user_id(), 'wpsvg_notice_dismissed' ) ){
 				if( function_exists('get_current_screen') && isset( get_current_screen()->id ) && in_array( get_current_screen()->id, array( 'plugins', 'plugin-install', 'upload', 'attachment' ) ) ){ ?>
 					<div class="wpsvg-notice notice notice-success is-dismissible">
@@ -122,7 +125,9 @@ if( ! class_exists('WPSVG') ){
 			// Security:  form data can be faked, including the filetype. Check tmpfile.
 			$file_type = mime_content_type($file['tmp_name']);
 
-			if( $file_type == 'image/svg+xml' )
+			$svgTypes = ['image/svg+xml', 'image/svg'];
+
+			if( in_array($file_type, $svgTypes) )
 			{
 				$user = wp_get_current_user();
 				$roles = (array)$user->roles;

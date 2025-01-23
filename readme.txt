@@ -4,8 +4,8 @@ Donate link: https://www.paypal.me/resizeImage
 Tags: svg, svg support, svg upload, sanitization
 Requires at least: 3.0.1
 Requires PHP: 5.6.40
-Tested up to: 6.6
-Stable tag: 4.3
+Tested up to: 6.7
+Stable tag: 4.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -68,6 +68,18 @@ function my_custom_allowed_svg_attributes( $attributes ){
 
 
 == Changelog ==
+= 4.4 =
+
+🔒 Security Update
+
+Release Date: January 23, 2025
+
+🛠️ Fixes
+
+* Security Patch: Resolved another potential Cross-Site Scripting (XSS) vulnerability, responsibly disclosed by the amazing team at WordFence and discovered by Ryan Zegar.
+
+We highly recommend updating to this version to ensure your site remains safe and secure. 💪🔐
+
 = 4.3 =
 Release date: June 20th, 2024
 * Fix: Patched a Stored Cross-Site Scripting vulnerability found by Colin Xu and responsibly disclosed by the WordFence team;
