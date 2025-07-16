@@ -123,6 +123,12 @@ if( ! class_exists('WPSVG') ){
 		function wp_handle_upload_prefilter( $file ){
 
 			// Security:  form data can be faked, including the filetype. Check tmpfile.
+			if ( ! isset($file['tmp_name']) || ! is_string($file['tmp_name']))
+			{
+				$file['error'] = __( 'Temp file is not be set!', 'wpsvg' );
+				return $file; 
+			}
+
 			$file_type = mime_content_type($file['tmp_name']);
 
 			$svgTypes = ['image/svg+xml', 'image/svg'];
