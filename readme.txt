@@ -4,8 +4,8 @@ Donate link: https://www.paypal.me/resizeImage
 Tags: svg, svg support, svg upload, sanitization
 Requires at least: 3.0.1
 Requires PHP: 5.6.40
-Tested up to: 6.7
-Stable tag: 4.4
+Tested up to: 7.0
+Stable tag: 4.5
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -68,6 +68,20 @@ function my_custom_allowed_svg_attributes( $attributes ){
 
 
 == Changelog ==
+
+= 4.5 =
+
+🧩 The Compatibility Update
+
+Release Date: May 11, 2026
+
+🛠️ Fixes
+
+* PHP 8.4+ Deprecation Fix: Resolved a deprecation warning to ensure smooth compatibility with PHP 8.4 and newer versions.
+* MIME Type Validation: Added extra validation to prevent errors when uploaded files are sent with incorrect MIME types.
+
+Update now for improved compatibility and more reliable uploads! 🚀
+
 = 4.4 =
 
 🔒 Security Update

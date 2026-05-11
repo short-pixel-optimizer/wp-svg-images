@@ -3,7 +3,7 @@
 	Plugin Name:		WP SVG Images
 	Plugin URI:		https://shortpixel.com/
 	Description:		Full SVG Media support in WordPress
-	Version:	  	4.4
+	Version:	  	4.5
 	Author:		  	ShortPixel
 	Author URI:		https://shortpixel.com/
  	GitHub Plugin URI:	https://github.com/short-pixel-optimizer/wp-svg-images
@@ -123,6 +123,12 @@ if( ! class_exists('WPSVG') ){
 		function wp_handle_upload_prefilter( $file ){
 
 			// Security:  form data can be faked, including the filetype. Check tmpfile.
+			if ( ! isset($file['tmp_name']) || ! is_string($file['tmp_name']))
+			{
+				$file['error'] = __( 'Temp file is not be set!', 'wpsvg' );
+				return $file; 
+			}
+
 			$file_type = mime_content_type($file['tmp_name']);
 
 			$svgTypes = ['image/svg+xml', 'image/svg'];
