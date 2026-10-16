@@ -1,6 +1,12 @@
 <?php
 namespace enshrined\svgSanitize\ElementReference;
 
+/**
+ * An element with an `id`, together with the elements it references through
+ * `<use>` and the elements that reference it.
+ *
+ * @package enshrined\svgSanitize\ElementReference
+ */
 class Subject
 {
     /**
@@ -36,6 +42,8 @@ class Subject
     }
 
     /**
+     * Returns the wrapped element.
+     *
      * @return \DOMElement
      */
     public function getElement()
@@ -44,6 +52,8 @@ class Subject
     }
 
     /**
+     * Returns the element's `id` attribute.
+     *
      * @return string
      */
     public function getElementId()
@@ -52,6 +62,9 @@ class Subject
     }
 
     /**
+     * Tells whether following this subject's `<use>` references leads back to
+     * a subject already on the current path.
+     *
      * @param array $subjects   Previously processed subjects
      * @param int   $level      The current level of nesting.
      * @return bool
@@ -76,7 +89,11 @@ class Subject
     }
 
     /**
+     * Records that this subject references $subject; repeated references
+     * increment the count.
+     *
      * @param Subject $subject
+     * @throws \LogicException When $subject is this subject (code 1570713416).
      */
     public function addUse(Subject $subject)
     {
@@ -92,7 +109,11 @@ class Subject
     }
 
     /**
+     * Records that $subject references this subject; repeated references
+     * increment the count.
+     *
      * @param Subject $subject
+     * @throws \LogicException When $subject is this subject (code 1570713417).
      */
     public function addUsedIn(Subject $subject)
     {
@@ -108,6 +129,11 @@ class Subject
     }
 
     /**
+     * Counts the element instances this subject expands to through `<use>`,
+     * recursively. Each reference counts its multiplicity times the
+     * referenced subject's own count (at least 1); with $accumulated the
+     * referenced subject itself is added to its count instead.
+     *
      * @param bool $accumulated
      * @return int
      */
@@ -122,6 +148,8 @@ class Subject
     }
 
     /**
+     * Counts, recursively, how many times this subject is referenced.
+     *
      * @return int
      */
     public function countUsedIn()

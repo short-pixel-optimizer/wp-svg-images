@@ -1,6 +1,12 @@
 <?php
 namespace enshrined\svgSanitize\data;
 
+/**
+ * DOMXPath that registers the document's default namespace under the `svg`
+ * prefix, so queries work whether or not the SVG declares a namespace.
+ *
+ * @package enshrined\svgSanitize\data
+ */
 class XPath extends \DOMXPath
 {
     const DEFAULT_NAMESPACE_PREFIX = 'svg';
@@ -10,6 +16,13 @@ class XPath extends \DOMXPath
      */
     protected $defaultNamespaceURI;
 
+    /**
+     * @param \DOMDocument $doc Parsed document.
+     * @throws \LogicException When the document does not have exactly one
+     *                         `<svg>` element as its root (code 1570870568),
+     *                         for example any XML whose root is not `<svg>`
+     *                         or whose root is a prefixed `<x:svg>`.
+     */
     public function __construct(\DOMDocument $doc)
     {
         parent::__construct($doc);
@@ -17,6 +30,9 @@ class XPath extends \DOMXPath
     }
 
     /**
+     * Returns the node name to use in a query: `svg:<name>` when the document
+     * has a default namespace, the bare name otherwise.
+     *
      * @param string $nodeName
      * @return string
      */
@@ -28,6 +44,12 @@ class XPath extends \DOMXPath
         return self::DEFAULT_NAMESPACE_PREFIX . ':' . $nodeName;
     }
 
+    /**
+     * Records the root `<svg>` element's namespace and registers it under
+     * DEFAULT_NAMESPACE_PREFIX when it is not empty.
+     *
+     * @throws \LogicException When there is not exactly one root `<svg>`.
+     */
     protected function handleDefaultNamespace()
     {
         $rootElements = $this->getRootElements();
@@ -46,6 +68,8 @@ class XPath extends \DOMXPath
     }
 
     /**
+     * Returns the `<svg>` elements that are direct children of the document.
+     *
      * @return \DOMElement[]
      */
     protected function getRootElements()

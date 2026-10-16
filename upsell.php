@@ -1,3 +1,18 @@
+<?php
+/**
+ * ShortPixel Image Optimizer upsell box shown on the settings page.
+ *
+ * Included from WPSVG::admin_options_page() when the plugin is not installed
+ * or not active; `$this` is the WPSVG instance and its $spio_installed flag
+ * decides whether the "Install now" or the "Activate" link is visible. The
+ * links are followed by assets/js/spio-upsell.js through AJAX GET requests.
+ *
+ * @todo assets/js/spio-upsell.js switches the box to its next state on any
+ *       successful HTTP response, and the installer page answers 200 even
+ *       when the install fails, so a failed install still shows "Activate".
+ *       Check the response content before changing state.
+ */
+?>
 <section>
 
 	<?php $plugin = 'shortpixel-image-optimiser' ?>

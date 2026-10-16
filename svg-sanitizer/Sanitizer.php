@@ -11,7 +11,22 @@ use HTMLPurifier;
 use HTMLPurifier_Config;
 
 /**
- * Class Sanitizer
+ * Whitelist-based SVG sanitizer (bundled copy of enshrined/svg-sanitize).
+ *
+ * Parses the input with DOMDocument, removes elements and attributes that are
+ * not whitelisted, unsafe hrefs, non-element nodes such as comments and
+ * processing instructions, `<font>` elements that break out of foreign
+ * content, and `<use>` elements that reference external resources, form
+ * loops, nest too deeply or expand beyond the use threshold. Everything
+ * removed is recorded in getXmlIssues().
+ *
+ * CDATA sections are passed through HTMLPurifier, which is not shipped with
+ * this plugin.
+ *
+ * @todo The bundled copy does not include HTMLPurifier, so any CDATA section
+ *       makes sanitize() fail with "Class HTMLPurifier not found" unless
+ *       another plugin happens to load it. Bundle HTMLPurifier with the
+ *       library.
  *
  * @package enshrined\svgSanitize
  */
@@ -79,7 +94,7 @@ class Sanitizer
     protected $useNestingLimit = 15;
 
     /**
-     *
+     * Loads the default tag and attribute whitelists, lower-cased.
      */
     function __construct()
     {
@@ -184,8 +199,18 @@ class Sanitizer
     /**
      * Sanitize the passed string
      *
+     * PHP tags (`<?php ... ?>`, `<?= ... ?>`) are stripped before parsing.
+     * Empty input (including "0") returns an empty string. The output keeps
+     * the XML declaration unless removeXMLTag() is enabled, and has every
+     * whitespace run collapsed to one space when minify() is enabled.
+     *
      * @param string $dirty
-     * @return string|false
+     * @return string|false Sanitized XML, or false when the input is not
+     *                      well-formed XML.
+     * @throws \LogicException When the document's root is not a single
+     *                         `<svg>` element (see XPath).
+     * @throws \Error          When the document contains a CDATA section and
+     *                         HTMLPurifier is not loaded.
      */
     public function sanitize($dirty)
     {
@@ -509,7 +534,7 @@ class Sanitizer
      * Removes non-printable ASCII characters from string & trims it
      *
      * @param string $value
-     * @return bool
+     * @return string
      */
     protected function removeNonPrintableCharacters($value)
     {
@@ -631,9 +656,10 @@ class Sanitizer
     }
 
     /**
-     * Set the nesting limit for <use> tags.
+     * Set the nesting limit for <use> tags (default 15). Takes effect on the
+     * next sanitize() call.
      *
-     * @param $limit
+     * @param int $limit
      */
     public function setUseNestingLimit($limit)
     {

@@ -5,6 +5,13 @@ use enshrined\svgSanitize\data\XPath;
 use enshrined\svgSanitize\Exceptions\NestingException;
 use enshrined\svgSanitize\Helper;
 
+/**
+ * Builds the graph of `id`-bearing elements and the `<use>` references between
+ * them, and lists the elements that must be removed because they take part in
+ * a reference loop or exceed the nesting limit.
+ *
+ * @package enshrined\svgSanitize\ElementReference
+ */
 class Resolver
 {
     /**
@@ -27,12 +34,23 @@ class Resolver
      */
     protected $useNestingLimit;
 
+    /**
+     * @param XPath $xPath           Query object for the document to analyse.
+     * @param int   $useNestingLimit Maximum `<use>` nesting depth before an
+     *                               element is marked for removal.
+     */
     public function __construct(XPath $xPath, $useNestingLimit)
     {
         $this->xPath = $xPath;
         $this->useNestingLimit = $useNestingLimit;
     }
 
+    /**
+     * Analyses the document: collects identified elements, records `<use>`
+     * references between them and fills the removal list. Call once per
+     * instance; a second call rebuilds the subjects but keeps appending to
+     * the removal list.
+     */
     public function collect()
     {
         $this->collectIdentifiedElements();
