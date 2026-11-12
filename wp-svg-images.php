@@ -216,7 +216,13 @@ if( ! class_exists('WPSVG') ){
 				$name = strtolower( $element->localName );
 				if( ! isset( $allowed[ $name ] ) ) continue;
 				foreach( $element->attributes as $attribute ){
-					if( strtolower( $attribute->localName ) === 'attributename' && ! in_array( strtolower( trim( $attribute->value ) ), $allowed[ $name ], true ) ){
+					$attr_name = strtolower( $attribute->localName );
+					$attr_value = strtolower( $attribute->value );
+					$bad_target = $attr_name === 'attributename' && ! in_array( trim( $attr_value ), $allowed[ $name ], true );
+					// Defense in depth: no script or data URLs in the animated values, whatever the target.
+					$bad_value = in_array( $attr_name, array( 'values', 'from', 'to', 'by' ), true )
+						&& preg_match( '/(?:javascript|vbscript|data):/', preg_replace( '/[\x00-\x20]+/', '', $attr_value ) );
+					if( $bad_target || $bad_value ){
 						$unsafe[] = $element;
 						break;
 					}
