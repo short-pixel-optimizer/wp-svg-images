@@ -54,6 +54,7 @@ if( ! class_exists('WPSVG') ){
 			$this->sanitizer->minify( true );
 
 			add_filter( 'wp_handle_upload_prefilter', array( $this, 'wp_handle_upload_prefilter' ) );
+			add_filter( 'wp_handle_sideload_prefilter', array( $this, 'wp_handle_upload_prefilter' ) ); // REST raw-body uploads
 
 			add_action( 'plugins_loaded', array( $this, 'plugins_loaded' ) );
 			add_action( 'admin_menu', array( $this, 'plugin_menu_link' ) );
@@ -133,7 +134,10 @@ if( ! class_exists('WPSVG') ){
 
 			$svgTypes = ['image/svg+xml', 'image/svg'];
 
-			if( in_array($file_type, $svgTypes) )
+			// Files are accepted and served as SVG by extension, so sanitize by extension too, not only by sniffed type.
+			$is_svg_name = isset( $file['name'] ) && is_string( $file['name'] ) && preg_match( '/\.svgz?$/i', $file['name'] );
+
+			if( $is_svg_name || in_array($file_type, $svgTypes) )
 			{
 				$user = wp_get_current_user();
 				$roles = (array)$user->roles;
@@ -167,6 +171,10 @@ if( ! class_exists('WPSVG') ){
 
 			$clean_svg_code = $this->sanitizer->sanitize( $svg_code );
 
+			if( $clean_svg_code !== false ){
+				$clean_svg_code = $this->clean_animations( $clean_svg_code );
+			}
+
 			if( $clean_svg_code === false ){
 				return false;
 			}
@@ -178,6 +186,48 @@ if( ! class_exists('WPSVG') ){
 			file_put_contents( $file, $clean_svg_code );
 
 			return true;
+		}
+
+		// Remove animation elements whose attributeName is not a known safe attribute: animating href
+		// (or another URL attribute) to javascript: runs script in WebKit. Done here, not in the bundled
+		// sanitizer, because another plugin may have loaded its own copy of that library.
+		function clean_animations( $svg_code ){
+			if( trim( $svg_code ) === '' ) return $svg_code;
+
+			$presentation = array( 'x', 'y', 'width', 'height', 'cx', 'cy', 'r', 'rx', 'ry', 'x1', 'y1', 'x2', 'y2', 'dx', 'dy', 'd', 'points',
+				'offset', 'rotate', 'startoffset', 'viewbox', 'fx', 'fy', 'stddeviation', 'opacity', 'fill', 'fill-opacity', 'stroke',
+				'stroke-width', 'stroke-opacity', 'stroke-dasharray', 'stroke-dashoffset', 'stop-color', 'stop-opacity',
+				'flood-color', 'flood-opacity', 'lighting-color', 'color', 'visibility', 'display', 'font-size', 'transform' );
+			$allowed = array(
+				'animate' => $presentation, 'set' => $presentation, 'animatecolor' => $presentation,
+				'animatetransform' => array( 'transform', 'gradienttransform', 'patterntransform' ),
+				'animatemotion' => array(), // never needs attributeName
+			);
+
+			$dom = new DOMDocument();
+			$internal_errors = libxml_use_internal_errors( true );
+			$loaded = $dom->loadXML( $svg_code, LIBXML_NONET );
+			libxml_clear_errors();
+			libxml_use_internal_errors( $internal_errors );
+			if( ! $loaded || ! $dom->documentElement ) return false;
+
+			$unsafe = array();
+			foreach( $dom->getElementsByTagName( '*' ) as $element ){
+				$name = strtolower( $element->localName );
+				if( ! isset( $allowed[ $name ] ) ) continue;
+				foreach( $element->attributes as $attribute ){
+					if( strtolower( $attribute->localName ) === 'attributename' && ! in_array( strtolower( trim( $attribute->value ) ), $allowed[ $name ], true ) ){
+						$unsafe[] = $element;
+						break;
+					}
+				}
+			}
+			if( ! $unsafe ) return $svg_code;
+
+			foreach( $unsafe as $element ){
+				$element->parentNode->removeChild( $element );
+			}
+			return $dom->saveXML( $dom->documentElement, LIBXML_NOEMPTYTAG );
 		}
 
 		function is_gzipped( $svg_code ){
