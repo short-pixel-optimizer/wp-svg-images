@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 100 50">
+  <symbol id="dot" viewBox="0 0 10 10">
+    <circle cx="5" cy="5" r="5"/>
+  </symbol>
+  <use href="#dot" x="0" y="0" width="20" height="20"/>
+  <use xlink:href="#dot" x="30" y="0" width="20" height="20"/>
+  <g id="pair">
+    <use href="#dot" x="60" y="0" width="10" height="10"/>
+    <use href="#dot" x="75" y="0" width="10" height="10"/>
+  </g>
+</svg>

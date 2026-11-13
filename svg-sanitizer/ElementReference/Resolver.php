@@ -117,11 +117,15 @@ class Resolver
      * Processes references from and to elements having `id` attribute concerning
      * their occurrence in `<use ... xlink:href="#identifier">` statements.
      *
-     * Only `<use>` elements that are direct children of an identified element
-     * are recorded, and only when they are in the document's default
-     * namespace. A `<use>` nested deeper, or one whose parent has no `id`, is
-     * not a reference for this graph.
+     * Only `<use>` elements in the document's default namespace are looked at.
      *
+     * @todo Only `<use>` elements that are direct children of an identified
+     *       element are recorded. A `<use>` nested one level deeper
+     *       (`<g id="a"><g><use href="#b"/></g></g>`) is not, so wrapping the
+     *       references in an extra element hides them from the loop, nesting
+     *       and threshold checks. Suggested fix: query descendants
+     *       (`.//use`) and attribute each `<use>` to its nearest identified
+     *       ancestor.
      * @todo A `<use>` that references its own parent
      *       (`<g id="a"><use href="#a"/></g>`) makes Subject::addUse() throw a
      *       LogicException that nothing catches, so collect() and
@@ -163,12 +167,16 @@ class Resolver
      * For a subject with a loop, the elements it references are added to the
      * removal list under their id and its own references are cleared. When
      * the nesting limit is hit, the element where it was hit is added as well.
-     * A `<use id="a" href="#a"/>` adds nothing: it has no references to list.
      *
+     * @todo A `<use id="a" href="#a"/>` is recognised as referencing itself,
+     *       but nothing is added to the removal list because the subject has
+     *       no recorded references, so the element stays in the document.
+     *       Suggested fix: add the subject's own element to the list.
      * @todo The in_array() check is not strict, and any two DOMElement
      *       objects compare equal, so once the removal list has one entry
      *       every remaining subject is skipped and its loops stay undetected.
-     *       Suggested fix: pass `true` as the third argument.
+     *       Suggested fix: pass `true` as the third argument, together with
+     *       the matching todo on Sanitizer::startClean().
      */
     protected function determineInvalidSubjects()
     {
