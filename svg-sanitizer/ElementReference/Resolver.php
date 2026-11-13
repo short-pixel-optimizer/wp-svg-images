@@ -48,8 +48,9 @@ class Resolver
     /**
      * Analyses the document: collects identified elements, records `<use>`
      * references between them and fills the removal list. Call once per
-     * instance; a second call rebuilds the subjects but keeps appending to
-     * the removal list.
+     * instance: the removal list is never reset.
+     *
+     * @throws \LogicException See the first todo on processReferences().
      */
     public function collect()
     {
@@ -83,6 +84,10 @@ class Resolver
      * DOM might have same ids assigned to different elements and leaving
      * it to client/browser implementation which element to actually use.
      *
+     * Subjects are stored by id, so when several elements share an id only
+     * the last one in document order is kept and at most one subject is
+     * returned, keyed by its id.
+     *
      * @param string $elementId
      * @return Subject[]
      */
@@ -111,6 +116,23 @@ class Resolver
     /**
      * Processes references from and to elements having `id` attribute concerning
      * their occurrence in `<use ... xlink:href="#identifier">` statements.
+     *
+     * Only `<use>` elements that are direct children of an identified element
+     * are recorded, and only when they are in the document's default
+     * namespace. A `<use>` nested deeper, or one whose parent has no `id`, is
+     * not a reference for this graph.
+     *
+     * @todo A `<use>` that references its own parent
+     *       (`<g id="a"><use href="#a"/></g>`) makes Subject::addUse() throw a
+     *       LogicException that nothing catches, so collect() and
+     *       Sanitizer::sanitize() end with an uncaught exception. Suggested
+     *       fix: mark the subject as invalid instead of calling addUse().
+     * @todo The query uses the `xlink` prefix without registering it. When a
+     *       child `<use>` has no plain `href` and the prefix is not declared
+     *       on the identified element or its ancestors, the query fails with
+     *       PHP warnings and none of that element's references are recorded.
+     *       Suggested fix: register the XLink namespace under `xlink` in
+     *       XPath::__construct().
      */
     protected function processReferences()
     {
@@ -137,6 +159,16 @@ class Resolver
 
     /**
      * Determines and tags infinite loops.
+     *
+     * For a subject with a loop, the elements it references are added to the
+     * removal list under their id and its own references are cleared. When
+     * the nesting limit is hit, the element where it was hit is added as well.
+     * A `<use id="a" href="#a"/>` adds nothing: it has no references to list.
+     *
+     * @todo The in_array() check is not strict, and any two DOMElement
+     *       objects compare equal, so once the removal list has one entry
+     *       every remaining subject is skipped and its loops stay undetected.
+     *       Suggested fix: pass `true` as the third argument.
      */
     protected function determineInvalidSubjects()
     {
