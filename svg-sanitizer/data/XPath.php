@@ -20,8 +20,10 @@ class XPath extends \DOMXPath
      * @param \DOMDocument $doc Parsed document.
      * @throws \LogicException When the document does not have exactly one
      *                         `<svg>` element as its root (code 1570870568),
-     *                         for example any XML whose root is not `<svg>`
-     *                         or whose root is a prefixed `<x:svg>`.
+     *                         for example any XML whose root is not `<svg>`.
+     *                         The root is matched by its local name, which is
+     *                         case-sensitive: a prefixed `<x:svg>` is accepted
+     *                         whatever its namespace, `<SVG>` is not.
      */
     public function __construct(\DOMDocument $doc)
     {

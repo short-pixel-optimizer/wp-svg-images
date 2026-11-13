@@ -98,10 +98,12 @@ Upload flow for a user whose role allows SVG:
 1. **Plan first.** No file changes before the plan for the current phase or
    task is approved. Each phase starts with a short plan and ends with a
    hand-off; wait for approval between phases.
-2. **Git.** Never commit, branch, create a worktree, push, rebase, merge or
-   open a pull request unless explicitly asked. Leave work uncommitted in the
-   current working tree and end every hand-off with a ready-to-paste
-   `git commit -m "..."` suggestion.
+2. **Git.** NEVER COMMIT to this repository without human approval. A human
+   reviews every change and makes or explicitly approves each commit; approval
+   given for one commit does not cover the next. Likewise never branch, create
+   a worktree, push, rebase, merge or open a pull request unless explicitly
+   asked. Leave work uncommitted in the current working tree and end every
+   hand-off with a ready-to-paste `git commit -m "..."` suggestion.
 3. **No speculative production fixes.** When a test reveals a defect, do not
    change production code: pin it with a test and report it. Fix only when
    asked.

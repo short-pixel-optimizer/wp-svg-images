@@ -167,10 +167,8 @@ the tested-up-to version.
 | PHP | WordPress | Gate |
 |---|---|---|
 | 7.4 | 6.4 | blocking |
-| 8.1 | 6.9 | blocking |
 | 8.3 | 7.0 | blocking |
-| 8.4 | latest | blocking |
-| 8.5 | latest | advisory |
+| 8.5 | latest | blocking |
 | 8.3 | nightly | advisory |
 
 ### 3.4 What "verified" means

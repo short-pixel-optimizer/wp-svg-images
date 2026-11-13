@@ -7,8 +7,9 @@ rules. This file repeats only the non-negotiable rules.
 ## Non-negotiable rules
 
 1. Plan first; no file changes before the plan is approved.
-2. Never commit, branch, create a worktree, push, rebase, merge or open a pull
-   request unless explicitly asked.
+2. NEVER COMMIT to this repository without human approval. Never branch,
+   create a worktree, push, rebase, merge or open a pull request unless
+   explicitly asked. Leave work uncommitted and suggest a commit message.
 3. Never fix production code speculatively; pin defects with a test and report
    them.
 4. No ticket numbers, commit hashes as history, dates or people's names in the

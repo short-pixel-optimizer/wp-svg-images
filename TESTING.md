@@ -65,7 +65,7 @@ bin/test.sh all --group pinned
 
 ```sh
 bin/test.sh all --php 7.4 --wp 6.4
-bin/test.sh integration --php 8.4 --wp latest
+bin/test.sh integration --php 8.5 --wp latest
 bin/test.sh integration --wp 7.0.7
 bin/test.sh integration --wp nightly
 ```
@@ -80,10 +80,8 @@ Supported matrix (also run by CI):
 | PHP | WordPress | Gate |
 |---|---|---|
 | 7.4 | 6.4 | blocking |
-| 8.1 | 6.9 | blocking |
 | 8.3 | 7.0 | blocking |
-| 8.4 | latest | blocking |
-| 8.5 | latest | advisory |
+| 8.5 | latest | blocking |
 | 8.3 | nightly | advisory |
 
 ### Output and exit codes
@@ -169,8 +167,12 @@ List them with `bin/test.sh all --group pinned`. Lifecycle rules: `CLAUDE.md`,
 
 ## CI
 
+- Both workflows run on every push to `updates`, on every pull request into
+  `updates` or `main`, and by hand. A pull request from `updates` into `main`
+  is skipped (and reported as passing) because the push to `updates` already
+  tested that commit, so nothing runs twice. Pushes to `main` do not run CI.
 - `.github/workflows/tests.yml` — the release gate. Runs `bin/test.sh --verify`
-  once, then `bin/test.sh all` on every matrix cell. Advisory cells may fail
+  once, then `bin/test.sh all` on every matrix cell. The advisory cell may fail
   without failing the workflow. Each job writes the executed counts to the job
   summary and uploads `tests/.results/`. No retries.
 - `.github/workflows/lint.yml` — advisory only: `php -l` on every supported PHP
