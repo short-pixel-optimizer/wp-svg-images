@@ -323,16 +323,25 @@ if( ! class_exists('WPSVG') ){
 		 * call. Disallowed elements and attributes are removed and the file is
 		 * kept; the method fails only when the content cannot be decoded or
 		 * parsed as XML. An empty file is "sanitized" to an empty string and
-		 * reported as success.
+		 * reported as success. Gzip content that cannot be decoded also raises
+		 * a PHP warning from gzdecode().
 		 *
 		 * @todo An SVG containing a CDATA section (for example inside
 		 *       `<style>`) ends in a fatal "Class HTMLPurifier not found" error
 		 *       because the bundled sanitizer uses HTMLPurifier, which the
 		 *       plugin does not ship. Bundle HTMLPurifier or replace the CDATA
 		 *       handling.
-		 * @todo Well-formed XML whose root element is not `<svg>` makes the
+		 * @todo Well-formed XML whose root element is not `<svg>`, and an SVG
+		 *       in which a `<use>` references its own parent element, make the
 		 *       sanitizer throw a LogicException, which propagates to the
 		 *       caller. Catch Throwable here and return false.
+		 * @todo An SVG whose root element is written with a prefix (`<x:svg>`)
+		 *       is overwritten with an XML declaration and nothing else, and
+		 *       reported as success. Return false when the sanitized content
+		 *       has no root element.
+		 * @todo A path that cannot be read raises a PHP warning, then an empty
+		 *       file is written to that path and success is reported. Return
+		 *       false when file_get_contents() fails.
 		 *
 		 * @param string $file Absolute path of the file to sanitize.
 		 * @return bool True when the file was rewritten, false when it could
@@ -822,11 +831,18 @@ if( ! class_exists('WPSVG') ){
 		 * and not percentages, parsed with floatval() so units are dropped
 		 * (`10em` gives 10). When either value is still zero and a `viewBox`
 		 * exists, both are taken from its third and fourth values. Returns
-		 * zeros when the file cannot be read or parsed.
+		 * zeros when the file cannot be read or parsed; PHP warnings are then
+		 * raised by simplexml_load_file() unless libxml internal errors are
+		 * enabled. The root element does not have to be `<svg>`, a negative
+		 * value is returned as it is, and a `width` without a `height` (or the
+		 * reverse) is ignored.
 		 *
 		 * @todo The `viewBox` is split on single spaces only, so a viewBox
 		 *       using commas or repeated whitespace (both valid) yields wrong
 		 *       or zero dimensions. Split on preg_split( '/[\s,]+/', trim( ... ) ).
+		 * @todo A gzipped file (`.svgz`) is not decoded, so its dimensions are
+		 *       always zero. Decode gzip content (see is_gzipped()) and parse
+		 *       it with simplexml_load_string().
 		 *
 		 * @param string $svg Path or URL of the SVG file.
 		 * @return object{width: float|int, height: float|int}
