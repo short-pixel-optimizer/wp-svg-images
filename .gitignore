@@ -8,3 +8,8 @@ composer.lock
 /build/
 /wordpress/
 /travis_output/
+
+# Test environment
+!tests/composer.lock
+/tests/.cache/
+/tests/.results/

@@ -1,0 +1,39 @@
+# Advisory only: never blocks a merge or a release. The test gate is tests.yml.
+name: Lint (advisory)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  php-syntax:
+    name: PHP ${{ matrix.php }} syntax
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.1', '8.3', '8.4', '8.5']
+    steps:
+      - uses: actions/checkout@v4
+      - name: php -l on every PHP file
+        run: |
+          docker run --rm -v "$PWD":/app -w /app php:${{ matrix.php }}-cli sh -c '
+            status=0
+            for f in $(find . -name "*.php" -not -path "./tests/vendor/*" -not -path "./tests/.cache/*"); do
+              php -l "$f" > /dev/null || status=1
+            done
+            exit $status'
+
+  shell:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - run: shellcheck bin/test.sh tests/bin/*.sh

@@ -1,0 +1,13 @@
+# Development files stay out of `git archive` exports (GitHub zip downloads,
+# Git Updater). Keep in sync with .distignore.
+/.github export-ignore
+/.cursor export-ignore
+/.gitignore export-ignore
+/.gitattributes export-ignore
+/.distignore export-ignore
+/bin export-ignore
+/docs export-ignore
+/tests export-ignore
+/AGENTS.md export-ignore
+/CLAUDE.md export-ignore
+/TESTING.md export-ignore

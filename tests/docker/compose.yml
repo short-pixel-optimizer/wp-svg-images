@@ -1,0 +1,63 @@
+# Test stack driven by bin/test.sh; do not start it by hand while a run is active.
+#
+# `setup` is the only service with network egress: it installs Composer
+# dependencies and downloads WordPress into tests/.cache. `php` runs the suites
+# on the internal `tests` network together with `db`, so test runs are hermetic.
+name: wpsvg-tests
+
+services:
+  db:
+    image: mariadb:10.11
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 1s
+      timeout: 5s
+      retries: 60
+    networks: [tests]
+
+  setup:
+    image: wpsvg-tests-tools
+    build:
+      context: .
+      dockerfile: tools.Dockerfile
+    volumes:
+      - ../..:/plugin
+    working_dir: /plugin/tests
+    networks: [egress]
+
+  php:
+    image: wpsvg-tests-php:${PHP_VERSION:-8.3}
+    build:
+      context: .
+      dockerfile: php.Dockerfile
+      args:
+        PHP_VERSION: ${PHP_VERSION:-8.3}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ${WPSVG_WP_DIR:-../.cache/none/wordpress}:/opt/wp
+      - ../..:/opt/wp/wp-content/plugins/wp-svg-images:ro
+      - ${WPSVG_TESTS_LIB_DIR:-../.cache/none/tests-lib}:/opt/wp-tests-lib:ro
+      - ../.results:/results
+    working_dir: /opt/wp/wp-content/plugins/wp-svg-images/tests
+    environment:
+      WPSVG_SUITE: ${WPSVG_SUITE:-}
+      WPSVG_EXPECTED_PHP: ${PHP_VERSION:-8.3}
+      WPSVG_EXPECTED_WP: ${WPSVG_EXPECTED_WP:-}
+      WPSVG_CANARY_FAIL: ${WPSVG_CANARY_FAIL:-}
+      WP_TESTS_DB_HOST: db
+      WP_TESTS_DB_USER: root
+      WP_TESTS_DB_PASSWORD: root
+      WP_TESTS_DIR: /opt/wp-tests-lib
+      WP_CORE_DIR: /opt/wp
+    networks: [tests]
+
+networks:
+  tests:
+    internal: true
+  egress: {}

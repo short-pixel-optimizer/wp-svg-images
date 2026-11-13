@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<!-- Suite `unit`: no WordPress loaded. Run through bin/test.sh. -->
+<phpunit
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:noNamespaceSchemaLocation="../vendor/phpunit/phpunit/phpunit.xsd"
+	bootstrap="../bootstrap/unit.php"
+	cacheResult="false"
+	colors="true"
+	failOnRisky="true"
+	failOnWarning="true"
+	beStrictAboutOutputDuringTests="true"
+	convertDeprecationsToExceptions="true"
+>
+	<testsuites>
+		<testsuite name="unit">
+			<directory suffix="Test.php">../unit</directory>
+		</testsuite>
+	</testsuites>
+</phpunit>
