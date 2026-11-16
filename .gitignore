@@ -13,3 +13,4 @@ composer.lock
 !tests/composer.lock
 /tests/.cache/
 /tests/.results/
+/tests/e2e/node_modules/

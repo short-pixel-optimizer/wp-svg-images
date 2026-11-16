@@ -1,7 +1,8 @@
 # Test stack driven by bin/test.sh; do not start it by hand while a run is active.
 #
-# `setup` is the only service with network egress: it installs Composer
-# dependencies and downloads WordPress into tests/.cache. `php` runs the suites
+# `setup` and `e2e-setup` are the only services with network egress: they
+# install Composer and Node dependencies and download WordPress and the compat
+# third parties into tests/.cache. `php`, `web` and `playwright` run the suites
 # on the internal `tests` network together with `db`, so test runs are hermetic.
 name: wpsvg-tests
 
@@ -65,6 +66,69 @@ services:
       WP_TESTS_DB_PASSWORD: root
       WP_TESTS_DIR: /opt/wp-tests-lib
       WP_CORE_DIR: /opt/wp
+    networks: [tests]
+
+  # The site of the `e2e` suite: the cached WordPress copy served by PHP's
+  # built-in web server from the same image the other suites run in. Reachable
+  # as http://web:8080 on the internal network only.
+  web:
+    image: wpsvg-tests-php:${PHP_VERSION:-8.3}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ${WPSVG_WP_DIR:-../.cache/none/wordpress}:/opt/wp
+      - ../..:/opt/wp/wp-content/plugins/wp-svg-images:ro
+      # WordPress also looks for wp-config.php one level above its folder.
+      - ../e2e/site/wp-config.php:/opt/wp-config.php:ro
+      - ../e2e/site/mu-plugins:/opt/e2e-mu-plugins:ro
+      - ../.results:/results
+    working_dir: /opt/wp
+    environment:
+      PHP_CLI_SERVER_WORKERS: 6
+      WPSVG_E2E_BASE_URL: http://web:8080
+      WP_TESTS_DB_HOST: db
+      WP_TESTS_DB_USER: root
+      WP_TESTS_DB_PASSWORD: root
+    command: ["php", "-S", "0.0.0.0:8080", "-t", "/opt/wp"]
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@fsockopen('127.0.0.1', 8080) ? 0 : 1);"]
+      interval: 1s
+      timeout: 5s
+      retries: 60
+    networks: [tests]
+
+  # Installs the Node packages of the `e2e` suite; the only e2e service with
+  # network egress. The image version equals the @playwright/test version in
+  # tests/e2e/package.json; bump both together.
+  e2e-setup:
+    image: mcr.microsoft.com/playwright:v1.65.1-noble
+    volumes:
+      - ../e2e:/e2e
+    working_dir: /e2e
+    environment:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      NPM_CONFIG_UPDATE_NOTIFIER: "false"
+    networks: [egress]
+
+  # Runs the browser tests against `web`, without network egress.
+  playwright:
+    image: mcr.microsoft.com/playwright:v1.65.1-noble
+    depends_on:
+      web:
+        condition: service_healthy
+    volumes:
+      - ../e2e:/e2e
+      - ../fixtures:/fixtures:ro
+      - ../.results:/results
+    working_dir: /e2e
+    environment:
+      WPSVG_E2E_BASE_URL: http://web:8080
+      WPSVG_EXPECTED_PHP: ${PHP_VERSION:-8.3}
+      WPSVG_EXPECTED_WP: ${WPSVG_EXPECTED_WP:-}
+      WPSVG_CANARY_FAIL: ${WPSVG_CANARY_FAIL:-}
+      CI: 1
+    ipc: host
     networks: [tests]
 
 networks:

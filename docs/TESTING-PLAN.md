@@ -130,7 +130,7 @@ machine; no local PHP, Composer or Node is assumed).
 |---|---|---|
 | `db` | `mariadb:10.11` (tmpfs data dir) | integration, compat, project suites, e2e |
 | `php` | Built from `tests/docker/php.Dockerfile`, arg `PHP_VERSION`; adds `pdo_mysql`/`mysqli`, `zip`, Composer, Subversion/Git, WP-CLI | unit, integration, compat, project suites |
-| `wp` | `wordpress:php${PHP_VERSION}-apache` with the plugin bind-mounted read-only | e2e only |
+| `web` | The `php` image running PHP's built-in web server over the cached WordPress copy, plugin bind-mounted read-only (chosen over `wordpress:php${PHP_VERSION}-apache`, which does not exist for every matrix cell) | e2e only |
 | `playwright` | `mcr.microsoft.com/playwright` pinned tag | e2e only |
 
 - WordPress core and the WP PHPUnit library (`tests/phpunit/includes` from
@@ -291,8 +291,8 @@ In order of user impact:
   7. Front end: image block outputs width/height for an SVG.
 - **Waits:** on WordPress's own signals (upload progress element removed,
   attachment `li` with `data-id`, REST response promises) — never on time.
-- **Visual snapshots:** only for the media-library SVG thumbnail and attachment
-  details preview (the `final_output` template rewrite is invisible otherwise).
+- **Previews:** no pixel snapshots. The tests check that the preview image
+  in the grid and in the attachment details loaded the SVG file.
 - **CI:** separate workflow, same no-retry rule. **Size:** ~20 specs.
 - **Risk:** media modal markup changes between WP versions — run against the
   oldest and latest WP from the matrix.

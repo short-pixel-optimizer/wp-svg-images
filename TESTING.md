@@ -33,8 +33,12 @@ bin/test.sh --help
 
 ### Suites
 
-Names are exact and case-sensitive. An unknown name, a wrong case (`Unit`) or a
-planned suite without tests exits with code 2 instead of running nothing.
+Names are exact and case-sensitive. An unknown name or a wrong case (`Unit`)
+exits with code 2 instead of running nothing.
+
+`all`, and a run without suite names, select the six PHPUnit suites. The
+browser suite `e2e` needs the web stack and runs only when named;
+`bin/test.sh all e2e` is the full release gate.
 
 | Suite | Status | What it covers | Configuration / bootstrap |
 |---|---|---|---|
@@ -44,7 +48,7 @@ planned suite without tests exits with code 2 instead of running nothing.
 | `multisite` | implemented | WordPress installed as a network, the plugin network-activated | `tests/phpunit/multisite.xml`, `tests/bootstrap/multisite.php` |
 | `cli` | implemented | WP-CLI commands against a freshly installed site: activation, imports with and without `--user`, removal | `tests/phpunit/cli.xml`, `tests/bootstrap/cli.php`, `tests/bootstrap/wp-cli-config.php` |
 | `l10n` | implemented | Text domain loading with a generated translation; `languages/wpsvg.pot` against the sources | `tests/phpunit/l10n.xml`, bootstrap of `integration` |
-| `e2e` | planned | Real browser against a running site | — |
+| `e2e` | implemented, opt-in | Chromium against a running site: real logins, clicks and HTTP uploads | `tests/e2e/playwright.config.js`, `tests/e2e/site/` |
 
 ### The `compat` suite
 
@@ -116,6 +120,38 @@ assertions look at exit code, output, and the files and rows the command left.
 - **`TextDomainTest`** switches the site to the locale `xx_XX` and answers the
   translation file WordPress asks for with one generated during the test.
 
+### The `e2e` suite
+
+Playwright drives Chromium against a real site. `bin/test.sh e2e` empties the
+database and the uploads folder, installs WordPress, starts the site, runs the
+specs and applies the same zero-test guard as for the other suites. The
+`assertions` count is always 0: Playwright's report has none.
+
+- **Site:** the `web` service serves the cached WordPress copy with PHP's
+  built-in web server from the image the other suites use, as
+  `http://web:8080` on the internal network. Its `wp-config.php` and a
+  must-use helper plugin live in `tests/e2e/site/`; the database is
+  `wpsvg_e2e`, uploads go to `wp-content/uploads-e2e`.
+- **Browser:** the official Playwright image. Its version in
+  `tests/docker/compose.yml` and the `@playwright/test` version in
+  `tests/e2e/package.json` have to be equal; bump both and refresh
+  `package-lock.json` together.
+- **Known state:** `resetSite()` in `tests/e2e/support/site.js` calls the
+  helper plugin, which deletes all content and plugin data, seeds one user per
+  role (`admin`, `editor`, `author`, `contributor`, `subscriber`, password
+  `password`) and sets the plugin's state and settings. `siteState()` reads
+  options, stored files and metadata. Call `resetSite()` before each test.
+- **No network:** Node packages are installed by the `e2e-setup` service
+  before the run. The helper plugin answers WordPress's own outbound requests
+  with an empty success, so update checks print no warnings.
+- **Selection:** `--class NAME` selects spec files whose path contains NAME,
+  `--filter PATTERN` is Playwright's `--grep` on test titles, and
+  `--group pinned` selects tests whose title carries the tag `@pinned`.
+- **Rules:** one worker, no retries, no `waitForTimeout`. Wait on what
+  WordPress shows or answers.
+- **After a failure** the screenshot, trace and page snapshot are in
+  `tests/.results/e2e-artifacts/`.
+
 ### One class, one test, one group
 
 ```sh
@@ -165,7 +201,7 @@ total executed count.
 |---|---|
 | 0 | Every selected suite passed and executed at least one test |
 | 1 | A suite failed, crashed, or executed zero tests |
-| 2 | Usage error: unknown option, unknown or planned suite |
+| 2 | Usage error: unknown option or unknown suite |
 | 3 | Another `bin/test.sh` run is in progress |
 
 JUnit reports and the parsed counts are left in `tests/.results/`.
@@ -184,7 +220,9 @@ these hold:
 3. The unit canary forced to fail (`WPSVG_CANARY_FAIL=1`) makes the runner
    exit non-zero with 1 failure.
 4. A filter that matches nothing makes the runner exit non-zero.
-5. An unknown suite name (`Unit`) and a planned suite (`e2e`) are rejected.
+5. Unknown suite names (`Unit`, `browser`) are rejected.
+6. The e2e canary runs alone: exactly 1 test executed and passed, with a
+   browser reaching a site on the requested PHP and WordPress versions.
 
 Steps 3 and 4 print a failure on purpose; the `PASS`/`FAIL` lines and the
 final `VERIFIED` / `NOT VERIFIED` line are what count.
