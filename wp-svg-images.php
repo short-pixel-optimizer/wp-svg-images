@@ -171,10 +171,19 @@ if( ! class_exists('WPSVG') ){
 		 * Hooked to `wp_all_import_image_mime_type`. Returns `image/svg+xml`
 		 * only when `$mime_type` is empty and the path ends in `.svg` or `.svgz`;
 		 * otherwise returns `$mime_type` unchanged. Upload permissions are not
-		 * checked here.
+		 * checked here, so imports create SVG attachments whatever the
+		 * per-role settings say. WP All Import finds no type for SVG images
+		 * by itself: without this filter the attachment gets an empty MIME
+		 * type. It sanitizes `.svg` files on its own and stores them with a
+		 * lower-case extension.
 		 *
 		 * @todo The extension check is case-sensitive, so `logo.SVG` keeps an
 		 *       empty MIME type. Compare against strtolower( $image_filepath ).
+		 * @todo A `.svgz` file imported as a file attachment gets the SVG type
+		 *       here although neither WP All Import nor this plugin sanitizes
+		 *       it, so it is stored with its scripts. Sanitize the file with
+		 *       sanitize() before reporting the type, or do not report a type
+		 *       for `.svgz`.
 		 *
 		 * @param string $mime_type      MIME type detected by WP All Import.
 		 * @param string $image_filepath Path of the imported image.
@@ -633,11 +642,19 @@ if( ! class_exists('WPSVG') ){
 		 * Hooked to `fl_module_upload_regex`. For those extensions, replaces
 		 * `|png|` with `|png|svgz?|` in `$regex['photo']`; other regexes and
 		 * extensions are returned unchanged. Has no effect when the photo
-		 * regex does not contain `|png|`.
+		 * regex does not contain `|png|`. Beaver Builder only decides whether
+		 * the extension suits the module; the upload still passes this
+		 * plugin's permission gate and sanitization.
+		 *
+		 * @todo Beaver Builder passes the extension as uploaded and matches
+		 *       its own list case-insensitively, but the comparison here is
+		 *       case-sensitive, so `LOGO.SVG` is refused in the photo module
+		 *       while `LOGO.PNG` is accepted. Compare against
+		 *       strtolower( $ext ).
 		 *
 		 * @param array  $regex Regexes keyed by module type.
 		 * @param string $type  Upload type (unused).
-		 * @param string $ext   Lower-case file extension.
+		 * @param string $ext   File extension as uploaded, in any case.
 		 * @param array  $file  Uploaded file (unused).
 		 * @return array
 		 */

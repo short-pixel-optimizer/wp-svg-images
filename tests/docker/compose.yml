@@ -44,8 +44,10 @@ services:
       - ../..:/opt/wp/wp-content/plugins/wp-svg-images:ro
       - ${WPSVG_TESTS_LIB_DIR:-../.cache/none/tests-lib}:/opt/wp-tests-lib:ro
       # Plugins directory of the `compat` suite: pinned third-party plugins
-      # from the cache, with the plugin under test mounted next to them.
-      - ../.cache/compat/plugins:/opt/compat-plugins:ro
+      # from the cache, with the plugin under test mounted next to them. The
+      # third parties are writable like on a real site (WP All Import ships
+      # HTMLPurifier, which keeps a cache next to its own files).
+      - ../.cache/compat/plugins:/opt/compat-plugins
       - ../..:/opt/compat-plugins/wp-svg-images:ro
       # Third-party libraries of the `compat` suite. Writable, because
       # HTMLPurifier keeps a cache next to its own files.

@@ -9,7 +9,10 @@
  * - `plugins`:   active plugins in the order WordPress loads them, as
  *                basenames relative to the plugins directory;
  * - `libraries`: files to load before WordPress, relative to
- *                the libraries directory.
+ *                the libraries directory;
+ * - `activate`:  optional; plugins whose activation routine runs after the
+ *                plugin files are loaded, for plugins that create database
+ *                tables on activation.
  *
  * Versions are pinned in tests/compat/plugins.json.
  */
@@ -34,5 +37,16 @@ return array(
 		'tests'     => 'HtmlPurifier',
 		'plugins'   => array( 'wp-svg-images/wp-svg-images.php' ),
 		'libraries' => array( 'htmlpurifier/library/HTMLPurifier.auto.php' ),
+	),
+	'wp-all-import'  => array(
+		'tests'     => 'WpAllImport',
+		'plugins'   => array( 'wp-all-import/plugin.php', 'wp-svg-images/wp-svg-images.php' ),
+		'libraries' => array(),
+		'activate'  => array( 'wp-all-import/plugin.php' ),
+	),
+	'beaver-builder' => array(
+		'tests'     => 'BeaverBuilder',
+		'plugins'   => array( 'beaver-builder-lite-version/fl-builder.php', 'wp-svg-images/wp-svg-images.php' ),
+		'libraries' => array(),
 	),
 );

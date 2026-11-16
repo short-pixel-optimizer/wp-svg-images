@@ -64,6 +64,10 @@ once per scenario, each on an empty database, and reports one total.
 - **Own plugins directory.** The suite sets `WP_PLUGIN_DIR` to a folder that
   holds the pinned third parties and this plugin, so the other suites never
   see them.
+- **Activation routines.** Activating through the `active_plugins` option
+  runs no activation hook. A scenario lists under `activate` the plugins that
+  need theirs (WP All Import creates its tables there); the bootstrap fires it
+  once all plugin files are loaded.
 - **Unsupported versions.** When a third-party plugin's header asks for a
   newer WordPress or PHP than the cell runs, the bootstrap does not load it
   and every test of that scenario is skipped with that reason. The skips are
@@ -77,6 +81,8 @@ once per scenario, each on an empty database, and reports one total.
 | `safe-svg-first` | Safe SVG, then this plugin (WordPress's default order) | `tests/compat/SafeSvg/` |
 | `safe-svg-last` | this plugin, then Safe SVG | `tests/compat/SafeSvg/` |
 | `htmlpurifier` | this plugin, HTMLPurifier loaded | `tests/compat/HtmlPurifier/` |
+| `wp-all-import` | WP All Import (activation routine run), then this plugin | `tests/compat/WpAllImport/` |
+| `beaver-builder` | Beaver Builder Lite, then this plugin | `tests/compat/BeaverBuilder/` |
 
 ### One class, one test, one group
 
@@ -263,6 +269,9 @@ List them with `bin/test.sh all --group pinned`. Lifecycle rules: `CLAUDE.md`,
   the first-loaded plugin supplies the library, so never assert on bundled
   sanitizer behaviour there without checking `sanitizer_copies()`.
 - **HTMLPurifier writes a cache next to its own files** and warns when it
-  cannot; its folder is mounted writable for that reason.
+  cannot; the libraries and third-party plugins folders are mounted writable
+  for that reason.
+- **Another plugin may bring HTMLPurifier.** WP All Import ships it, so in
+  that scenario a CDATA section does not end in the Error pinned elsewhere.
 - **Plugin PHP files use CRLF line endings.** Keep them when editing.
 - **`bin/test.sh` targets bash 3.2** (macOS default). Avoid bash 4 features.

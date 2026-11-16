@@ -1,6 +1,8 @@
 {
 	"plugins": {
-		"safe-svg": "2.5.2"
+		"beaver-builder-lite-version": "2.11.1.2",
+		"safe-svg": "2.5.2",
+		"wp-all-import": "4.2.0"
 	},
 	"libraries": {
 		"htmlpurifier": {

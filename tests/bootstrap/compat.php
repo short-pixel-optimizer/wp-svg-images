@@ -114,4 +114,19 @@ $GLOBALS['wp_tests_options'] = array(
 	'active_plugins' => explode( ',', WPSVG_COMPAT_ACTIVE_PLUGINS ),
 );
 
+// Activating through the option runs no activation routine. Scenarios that
+// name plugins under `activate` get it run once every plugin file is loaded,
+// before any `plugins_loaded` callback, so those plugins find their tables.
+if ( '' === $wpsvg_skip_reason && ! empty( $wpsvg_scenario['activate'] ) ) {
+	tests_add_filter(
+		'plugins_loaded',
+		static function () use ( $wpsvg_scenario ) {
+			foreach ( $wpsvg_scenario['activate'] as $basename ) {
+				do_action( 'activate_' . $basename );
+			}
+		},
+		-PHP_INT_MAX
+	);
+}
+
 require $wpsvg_tests_lib . '/includes/bootstrap.php';
