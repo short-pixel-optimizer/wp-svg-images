@@ -151,6 +151,18 @@ specs and applies the same zero-test guard as for the other suites. The
   WordPress shows or answers.
 - **After a failure** the screenshot, trace and page snapshot are in
   `tests/.results/e2e-artifacts/`.
+- **Uploads:** `tests/e2e/support/media.js` uploads through the Media Library
+  grid or the plain upload form, `tests/e2e/support/editor.js` through an
+  image block. Both uploaders know the file types WordPress allows for the
+  user and refuse other files in the browser, without a request; the helpers
+  report whether a request was sent. To test the server's refusal, use
+  `uploadWithPlainForm()` or a REST request.
+- **Editor errors come from the notice store.** In the page an upload error
+  looks like the "Uploading" and "Upload complete" messages of current
+  WordPress; `editorError()` reads `core/notices` and takes notices with the
+  status `error` only.
+- **Previews** are checked with `expectLoadedSvg()`: the image's address ends
+  in `.svg` and the browser decoded it. There are no pixel snapshots.
 
 ### One class, one test, one group
 
