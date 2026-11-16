@@ -40,11 +40,43 @@ planned suite without tests exits with code 2 instead of running nothing.
 |---|---|---|---|
 | `unit` | implemented | Sanitizer library and `WPSVG` helpers, no WordPress | `tests/phpunit/unit.xml`, `tests/bootstrap/unit.php` |
 | `integration` | implemented | Real WordPress, database and uploads directory; the plugin is active through `active_plugins` | `tests/phpunit/integration.xml`, `tests/bootstrap/integration.php` |
-| `compat` | planned | Third-party plugins active and inactive | — |
+| `compat` | implemented | The plugin next to real third-party plugins and libraries, one run per scenario | `tests/phpunit/compat.xml`, `tests/bootstrap/compat.php`, `tests/compat/scenarios.php` |
 | `multisite` | planned | Network installs | — |
 | `cli` | planned | WP-CLI imports and activation | — |
 | `l10n` | planned | Text domain loading and translation template | — |
 | `e2e` | planned | Real browser against a running site | — |
+
+### The `compat` suite
+
+WordPress loads plugins once per PHP process, so "active" and "inactive"
+cannot be switched inside a run. `bin/test.sh compat` therefore runs PHPUnit
+once per scenario, each on an empty database, and reports one total.
+
+- **Scenarios** are listed in `tests/compat/scenarios.php`: the active plugins
+  in load order, the libraries to load, and the folder below `tests/compat/`
+  whose tests run. Two scenarios may share a folder (the two Safe SVG load
+  orders do); the tests then ask `scenario()` what to expect.
+- **Versions** are pinned in `tests/compat/plugins.json`. Plugins come from
+  wordpress.org, libraries from the address in the manifest. Changing a
+  version there replaces the cached copy on the next run.
+- **Downloads** happen in the `setup` container only, into
+  `tests/.cache/compat/`. The test run itself stays offline.
+- **Own plugins directory.** The suite sets `WP_PLUGIN_DIR` to a folder that
+  holds the pinned third parties and this plugin, so the other suites never
+  see them.
+- **Unsupported versions.** When a third-party plugin's header asks for a
+  newer WordPress or PHP than the cell runs, the bootstrap does not load it
+  and every test of that scenario is skipped with that reason. The skips are
+  listed after the `Executed:` line.
+- **New test classes** extend `CompatTestCase`, which adds the scenario
+  helpers to the integration test case.
+
+| Scenario | Active | Tests |
+|---|---|---|
+| `baseline` | this plugin only | `tests/compat/Baseline/` |
+| `safe-svg-first` | Safe SVG, then this plugin (WordPress's default order) | `tests/compat/SafeSvg/` |
+| `safe-svg-last` | this plugin, then Safe SVG | `tests/compat/SafeSvg/` |
+| `htmlpurifier` | this plugin, HTMLPurifier loaded | `tests/compat/HtmlPurifier/` |
 
 ### One class, one test, one group
 
@@ -227,5 +259,10 @@ List them with `bin/test.sh all --group pinned`. Lifecycle rules: `CLAUDE.md`,
   `WP_Ajax_UnitTestCase` does not define, and its simulated request fires
   `admin_init`. `NoticeDismissalAjaxTest` therefore runs each test in its own
   process.
+- **A sanitizer class may come from another plugin.** In the `compat` suite
+  the first-loaded plugin supplies the library, so never assert on bundled
+  sanitizer behaviour there without checking `sanitizer_copies()`.
+- **HTMLPurifier writes a cache next to its own files** and warns when it
+  cannot; its folder is mounted writable for that reason.
 - **Plugin PHP files use CRLF line endings.** Keep them when editing.
 - **`bin/test.sh` targets bash 3.2** (macOS default). Avoid bash 4 features.

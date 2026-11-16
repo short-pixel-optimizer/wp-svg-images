@@ -4,6 +4,9 @@
  *
  * Usage: php junit-summary.php <junit.xml> <summary-file> <phpunit-exit-code>
  *
+ * <junit.xml> may be a glob pattern; the counts of all matching reports are
+ * added up (the `compat` suite writes one report per scenario).
+ *
  * Prints the executed test, assertion, failure, error and skip counts, lists
  * every skipped test with its message, and writes the counts as key=value
  * lines to <summary-file> for bin/test.sh.
@@ -20,8 +23,15 @@ $phpunit = isset( $argv[3] ) ? (int) $argv[3] : 1;
 
 $counts = array( 'tests' => 0, 'assertions' => 0, 'failures' => 0, 'errors' => 0, 'skipped' => 0 );
 
-$xml = is_readable( $report ) ? simplexml_load_file( $report ) : false;
-if ( false === $xml || ! isset( $xml->testsuite ) ) {
+$reports = array();
+foreach ( (array) glob( $report ) as $path ) {
+	$xml = is_readable( $path ) ? simplexml_load_file( $path ) : false;
+	if ( false !== $xml && isset( $xml->testsuite ) ) {
+		$reports[] = $xml;
+	}
+}
+
+if ( ! $reports ) {
 	file_put_contents( $summary, "tests=0\nreport=missing\n" );
 	if ( 0 === $phpunit ) {
 		echo "Executed: 0 tests\n";
@@ -32,9 +42,15 @@ if ( false === $xml || ! isset( $xml->testsuite ) ) {
 	exit( 4 );
 }
 
-foreach ( $xml->testsuite as $suite ) {
-	foreach ( array_keys( $counts ) as $key ) {
-		$counts[ $key ] += (int) $suite[ $key ];
+$skipped = array();
+foreach ( $reports as $xml ) {
+	foreach ( $xml->testsuite as $suite ) {
+		foreach ( array_keys( $counts ) as $key ) {
+			$counts[ $key ] += (int) $suite[ $key ];
+		}
+	}
+	foreach ( $xml->xpath( '//testcase[skipped]' ) as $case ) {
+		$skipped[] = sprintf( "  skipped: %s::%s - %s\n", $case['class'], $case['name'], trim( (string) $case->skipped ) );
 	}
 }
 
@@ -53,9 +69,7 @@ printf(
 	$counts['skipped']
 );
 
-foreach ( $xml->xpath( '//testcase[skipped]' ) as $case ) {
-	printf( "  skipped: %s::%s - %s\n", $case['class'], $case['name'], trim( (string) $case->skipped ) );
-}
+echo implode( '', $skipped );
 
 if ( 0 === $counts['tests'] ) {
 	fwrite( STDERR, "ERROR: zero tests executed. A run that runs nothing is a failure.\n" );

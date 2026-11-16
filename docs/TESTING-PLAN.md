@@ -249,7 +249,7 @@ In order of user impact:
 | Third party | Source in tests | Active / inactive cases |
 |---|---|---|
 | Plugins bundling `enshrined/svg-sanitize` (Safe SVG) | Real plugin from wp.org, pinned | Which sanitizer wins; plugin filters still applied; no fatal on load order either way |
-| HTMLPurifier presence | Real library installed via `tests/composer.json` vs. absent | CDATA-bearing SVG upload with and without it |
+| HTMLPurifier presence | Real library, pinned in the compat manifest (not in `tests/composer.json`, whose autoloader would load it in every suite) vs. absent | CDATA-bearing SVG upload with and without it |
 | WP All Import | Real free plugin, pinned | `wp_all_import_image_mime_type` result for svg/svgz/other |
 | Beaver Builder (Lite) | Real free plugin, pinned | Photo module regex extended only for svg/svgz |
 | ShortPixel Image Optimizer | Real free plugin, pinned | Upsell shown when absent / inactive, hidden when active |

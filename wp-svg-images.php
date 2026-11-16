@@ -14,6 +14,15 @@
 
 defined( 'ABSPATH' ) ||	exit;
 
+/*
+ * Load the bundled sanitizer unless another copy of the library is already
+ * available. class_exists() also asks registered autoloaders, so a plugin
+ * that loads earlier and ships the library through Composer (Safe SVG, for
+ * example) supplies every sanitizer class and the bundled files are not read
+ * at all. A plugin that loads later uses the bundled copy instead. The two
+ * cases behave differently wherever the copies differ: the defects documented
+ * in svg-sanitizer/ apply to the bundled copy only.
+ */
 if( ! class_exists('enshrined\svgSanitize\Sanitizer') ){
 	require_once( 'svg-sanitizer/data/AttributeInterface.php' );
 	require_once( 'svg-sanitizer/data/TagInterface.php' );
@@ -264,6 +273,11 @@ if( ! class_exists('WPSVG') ){
 		 * unless one of the current user's roles is set to unrestricted (2).
 		 * Upload permission itself is enforced by add_svg_mime(), not here.
 		 *
+		 * Another active SVG plugin keeps its own rules. Safe SVG, for
+		 * example, sanitizes every SVG upload and sideload a second time, so
+		 * an unrestricted role's file is sanitized as well and elements
+		 * allowed through `WPSVG_setAllowedTags` are removed again.
+		 *
 		 * Sets `$file['error']` when `tmp_name` is missing or not a string
 		 * (for every upload, SVG or not), and when sanitization fails.
 		 *
@@ -277,6 +291,11 @@ if( ! class_exists('WPSVG') ){
 		 *       `image/svg+xml` by file name. Decide by the extension that
 		 *       WordPress will store (and by gzip magic bytes) rather than by
 		 *       sniffed type alone.
+		 * @todo No permission is checked here, so when another plugin allows
+		 *       the SVG type (Safe SVG does, for every user who can upload
+		 *       files), a role set to "disable SVG upload" uploads SVGs.
+		 *       Set `$file['error']` for SVG files from users without a
+		 *       non-zero permission.
 		 * @todo Uploads that go through wp_handle_sideload() (REST API raw-body
 		 *       uploads, media_sideload_image(), importers) fire
 		 *       `wp_handle_sideload_prefilter` instead and are stored
@@ -645,7 +664,9 @@ if( ! class_exists('WPSVG') ){
 		 * Stores the SVG's width and height in the attachment metadata.
 		 *
 		 * Hooked to `wp_generate_attachment_metadata`. Applies only to
-		 * `image/svg+xml` attachments; other metadata keys are kept.
+		 * `image/svg+xml` attachments; other metadata keys are kept. A plugin
+		 * that filters the metadata later can replace the values: Safe SVG,
+		 * when it loads after this plugin, stores the `viewBox` size instead.
 		 *
 		 * @param array $metadata      Attachment metadata.
 		 * @param int   $attachment_id Attachment post ID.

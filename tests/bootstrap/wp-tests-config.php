@@ -22,3 +22,10 @@ define( 'WP_TESTS_EMAIL', 'admin@example.org' );
 define( 'WP_TESTS_TITLE', 'WP SVG Images Tests' );
 define( 'WP_PHP_BINARY', 'php' );
 define( 'WPLANG', '' );
+
+// The `compat` suite has its own plugins directory, so the third-party
+// plugins it needs never show up in the other suites.
+if ( 'compat' === getenv( 'WPSVG_SUITE' ) ) {
+	define( 'WP_PLUGIN_DIR', '/opt/compat-plugins' );
+	define( 'WP_PLUGIN_URL', 'http://' . WP_TESTS_DOMAIN . '/wp-content/plugins' );
+}

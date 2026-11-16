@@ -718,6 +718,18 @@ class Sanitizer
     /**
      * Remove nodes that are either invalid or malformed.
      *
+     * A CDATA section is replaced with a text node holding what HTMLPurifier
+     * makes of its content read as HTML: markup that is not allowed in HTML
+     * is dropped and `<`, `>` and `&` come back as entities.
+     *
+     * @todo The purified text is HTML-encoded and then stored as a text
+     *       node, which encodes it once more on output. A `<style>` rule
+     *       such as `a > b {}` becomes `a &gt; b {}` for the browser and no
+     *       longer applies, and `a < b` in a `<text>` element is displayed as
+     *       `a &lt; b`. Suggested fix: decode the purified text before
+     *       creating the text node, or keep CDATA content as plain text
+     *       without HTMLPurifier.
+     *
      * @param \DOMNode $currentElement The current element.
      */
     protected function cleanUnsafeNodes(\DOMNode $currentElement) {

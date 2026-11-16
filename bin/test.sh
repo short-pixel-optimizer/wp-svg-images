@@ -24,8 +24,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TESTS="$ROOT/tests"
 COMPOSE=(docker compose --progress quiet -f "$TESTS/docker/compose.yml")
 
-IMPLEMENTED_SUITES="unit integration"
-PLANNED_SUITES="compat multisite cli l10n e2e"
+IMPLEMENTED_SUITES="unit integration compat"
+PLANNED_SUITES="multisite cli l10n e2e"
 
 PHP_VERSION="8.3"
 WP_REQUEST="latest"
@@ -87,7 +87,7 @@ echo "$WP_REQUEST" | grep -Eq '^(latest|nightly|[0-9]+\.[0-9]+(\.[0-9]+)?)$' || 
 command -v docker >/dev/null || { echo "bin/test.sh: docker is required." >&2; exit 2; }
 
 # One run at a time: suites share the database container and the WordPress cache.
-mkdir -p "$TESTS/.cache/none/wordpress" "$TESTS/.cache/none/tests-lib" "$TESTS/.results"
+mkdir -p "$TESTS/.cache/none/wordpress" "$TESTS/.cache/none/tests-lib" "$TESTS/.cache/compat/plugins/wp-svg-images" "$TESTS/.cache/compat/libraries" "$TESTS/.results"
 LOCK="$TESTS/.cache/run.lock"
 if ! mkdir "$LOCK" 2>/dev/null; then
 	other="$(cat "$LOCK/pid" 2>/dev/null || true)"
@@ -114,12 +114,16 @@ echo "==> PHP $PHP_VERSION image"
 "${COMPOSE[@]}" build --quiet setup php || { echo "bin/test.sh: image build failed." >&2; exit 1; }
 
 needs_wp=0
-for s in $SUITES; do [ "$s" != unit ] && needs_wp=1; done
+third_parties=""
+for s in $SUITES; do
+	[ "$s" != unit ] && needs_wp=1
+	[ "$s" = compat ] && third_parties=compat
+done
 [ "$VERIFY" = 1 ] && needs_wp=1
 
 if [ "$needs_wp" = 1 ]; then
 	echo "==> WordPress $WP_REQUEST"
-	setup_out="$("${COMPOSE[@]}" run --rm -T setup bash bin/setup.sh "$WP_REQUEST")" || { echo "$setup_out"; echo "bin/test.sh: setup failed." >&2; exit 1; }
+	setup_out="$("${COMPOSE[@]}" run --rm -T setup bash bin/setup.sh "$WP_REQUEST" $third_parties)" || { echo "$setup_out"; echo "bin/test.sh: setup failed." >&2; exit 1; }
 else
 	setup_out="$("${COMPOSE[@]}" run --rm -T setup bash bin/setup.sh none)" || { echo "$setup_out"; echo "bin/test.sh: setup failed." >&2; exit 1; }
 fi

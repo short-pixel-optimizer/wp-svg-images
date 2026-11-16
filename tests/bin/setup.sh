@@ -1,19 +1,26 @@
 #!/usr/bin/env bash
 # Runs inside the `setup` container (network access, repository mounted at /plugin).
 #
-# Usage: setup.sh <wp-version|none>
+# Usage: setup.sh <wp-version|none> [compat]
 #   <wp-version>  latest | nightly | X.Y (newest X.Y.Z) | X.Y.Z
 #   none          only install Composer dependencies
+#   compat        also download the third parties of the `compat` suite
 #
 # Installs tests/vendor from tests/composer.lock, downloads WordPress core and
 # the WordPress PHPUnit library into tests/.cache/wp/<resolved>/ when missing,
-# and prints `RESOLVED_WP=<version>` as its last line.
+# downloads the plugins and libraries pinned in tests/compat/plugins.json into
+# tests/.cache/compat/ when asked to, and prints `RESOLVED_WP=<version>` as its
+# last line.
 set -euo pipefail
 
-request="${1:?usage: setup.sh <wp-version|none>}"
+request="${1:?usage: setup.sh <wp-version|none> [compat]}"
 cache=/plugin/tests/.cache/wp
 
 composer install --working-dir=/plugin/tests --no-interaction --no-progress --quiet
+
+if [ "${2:-}" = compat ]; then
+	php /plugin/tests/bin/fetch-compat.php /plugin/tests/compat/plugins.json /plugin/tests/.cache/compat
+fi
 
 if [ "$request" = "none" ]; then
 	echo "RESOLVED_WP=none"
