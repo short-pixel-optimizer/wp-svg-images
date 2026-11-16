@@ -179,16 +179,17 @@ if( ! class_exists('WPSVG') ){
 		 * checked here, so imports create SVG attachments whatever the
 		 * per-role settings say. WP All Import finds no type for SVG images
 		 * by itself: without this filter the attachment gets an empty MIME
-		 * type. It sanitizes `.svg` files on its own and stores them with a
-		 * lower-case extension.
+		 * type. Current releases sanitize `.svg` files on their own; every
+		 * release stores them with a lower-case extension.
 		 *
 		 * @todo The extension check is case-sensitive, so `logo.SVG` keeps an
 		 *       empty MIME type. Compare against strtolower( $image_filepath ).
-		 * @todo A `.svgz` file imported as a file attachment gets the SVG type
-		 *       here although neither WP All Import nor this plugin sanitizes
-		 *       it, so it is stored with its scripts. Sanitize the file with
-		 *       sanitize() before reporting the type, or do not report a type
-		 *       for `.svgz`.
+		 * @todo Nothing is sanitized here. Current WP All Import releases
+		 *       sanitize `.svg` files themselves, but older releases do not,
+		 *       and no release sanitizes `.svgz`, so with those an imported
+		 *       file gets the SVG type and keeps its scripts. Sanitize the
+		 *       file with sanitize() before reporting the type, or do not
+		 *       report a type for a file that could not be sanitized.
 		 *
 		 * @param string $mime_type      MIME type detected by WP All Import.
 		 * @param string $image_filepath Path of the imported image.

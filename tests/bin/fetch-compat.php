@@ -7,8 +7,9 @@
  *
  * Runs inside the `setup` container, the only one with network access.
  * Plugins come from wordpress.org and end up in <cache-dir>/plugins/<slug>/,
- * libraries from the address in the manifest in
- * <cache-dir>/libraries/<name>/. A marker in <cache-dir>/versions/ records
+ * the older versions listed under `previous_plugins` in
+ * <cache-dir>/plugins-previous/<slug>/, and libraries from the address in the
+ * manifest in <cache-dir>/libraries/<name>/. A marker in <cache-dir>/versions/ records
  * what is installed, so a version change in the manifest replaces the copy
  * and an unchanged one costs nothing.
  */
@@ -46,7 +47,7 @@ function run( $command ) {
 /**
  * Installs one zip archive whose single top-level folder becomes $target.
  *
- * @param string $kind    `plugins` or `libraries`.
+ * @param string $kind    `plugins`, `plugins-previous` or `libraries`.
  * @param string $name    Folder name below <cache-dir>/<kind>/.
  * @param string $version Pinned version, recorded in the marker.
  * @param string $url     Archive address.
@@ -78,10 +79,14 @@ function install( $kind, $name, $version, $url, $cache ) {
 }
 
 $plugins   = isset( $manifest['plugins'] ) ? $manifest['plugins'] : array();
+$previous  = isset( $manifest['previous_plugins'] ) ? $manifest['previous_plugins'] : array();
 $libraries = isset( $manifest['libraries'] ) ? $manifest['libraries'] : array();
 
 foreach ( $plugins as $slug => $version ) {
 	install( 'plugins', $slug, $version, "https://downloads.wordpress.org/plugin/$slug.$version.zip", $cache );
+}
+foreach ( $previous as $slug => $version ) {
+	install( 'plugins-previous', $slug, $version, "https://downloads.wordpress.org/plugin/$slug.$version.zip", $cache );
 }
 foreach ( $libraries as $name => $library ) {
 	install( 'libraries', $name, $library['version'], $library['url'], $cache );
@@ -89,7 +94,7 @@ foreach ( $libraries as $name => $library ) {
 
 // Remove copies that are no longer in the manifest. The plugin under test is
 // mounted over its own empty folder and is never a download.
-foreach ( array( 'plugins' => $plugins, 'libraries' => $libraries ) as $kind => $wanted ) {
+foreach ( array( 'plugins' => $plugins, 'plugins-previous' => $previous, 'libraries' => $libraries ) as $kind => $wanted ) {
 	foreach ( glob( "$cache/$kind/*", GLOB_ONLYDIR ) as $folder ) {
 		$name = basename( $folder );
 		if ( 'wp-svg-images' !== $name && ! isset( $wanted[ $name ] ) ) {

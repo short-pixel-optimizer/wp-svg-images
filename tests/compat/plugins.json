@@ -6,6 +6,12 @@
 		"shortpixel-image-optimiser": "6.6.1",
 		"wp-all-import": "4.2.0"
 	},
+	"previous_plugins": {
+		"beaver-builder-lite-version": "2.7.4.5",
+		"gutenberg": "18.5.0",
+		"safe-svg": "2.2.6",
+		"wp-all-import": "3.7.9"
+	},
 	"libraries": {
 		"htmlpurifier": {
 			"version": "4.19.1",

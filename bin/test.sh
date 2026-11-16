@@ -97,7 +97,7 @@ echo "$WP_REQUEST" | grep -Eq '^(latest|nightly|[0-9]+\.[0-9]+(\.[0-9]+)?)$' || 
 command -v docker >/dev/null || { echo "bin/test.sh: docker is required." >&2; exit 2; }
 
 # One run at a time: suites share the database container and the WordPress cache.
-mkdir -p "$TESTS/.cache/none/wordpress" "$TESTS/.cache/none/tests-lib" "$TESTS/.cache/compat/plugins/wp-svg-images" "$TESTS/.cache/compat/libraries" "$TESTS/.results"
+mkdir -p "$TESTS/.cache/none/wordpress" "$TESTS/.cache/none/tests-lib" "$TESTS/.cache/compat/plugins/wp-svg-images" "$TESTS/.cache/compat/plugins-previous/wp-svg-images" "$TESTS/.cache/compat/libraries" "$TESTS/.results"
 LOCK="$TESTS/.cache/run.lock"
 if ! mkdir "$LOCK" 2>/dev/null; then
 	other="$(cat "$LOCK/pid" 2>/dev/null || true)"

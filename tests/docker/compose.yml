@@ -50,6 +50,9 @@ services:
       # HTMLPurifier, which keeps a cache next to its own files).
       - ../.cache/compat/plugins:/opt/compat-plugins
       - ../..:/opt/compat-plugins/wp-svg-images:ro
+      # The same for the scenarios that run an older version of a third party.
+      - ../.cache/compat/plugins-previous:/opt/compat-plugins-previous
+      - ../..:/opt/compat-plugins-previous/wp-svg-images:ro
       # Third-party libraries of the `compat` suite. Writable, because
       # HTMLPurifier keeps a cache next to its own files.
       - ../.cache/compat/libraries:/opt/compat-libraries

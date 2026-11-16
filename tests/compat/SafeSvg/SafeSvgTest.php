@@ -10,6 +10,11 @@ require_once dirname( __DIR__ ) . '/CompatTestCase.php';
  * (what WordPress does by default, plugins load alphabetically) and
  * `safe-svg-last`. Whichever plugin loads first supplies the sanitizer
  * classes for both, and several results below follow from that.
+ *
+ * A third scenario, `safe-svg-previous`, loads an older Safe SVG first. That
+ * release sanitizes in the upload prefilter only, before this plugin, where
+ * the current one sanitizes the stored file once more at the end; it allows
+ * the SVG type on every request, and it ships HTMLPurifier.
  */
 class SafeSvgTest extends CompatTestCase {
 
@@ -24,7 +29,15 @@ class SafeSvgTest extends CompatTestCase {
 	 * @return bool Whether Safe SVG loaded before this plugin.
 	 */
 	private function safe_svg_loaded_first() {
-		return 'safe-svg-first' === $this->scenario();
+		return 'safe-svg-last' !== $this->scenario();
+	}
+
+	/**
+	 * @return string What a role limited to sanitized uploads gets stored for
+	 *                DIRTY_SVG: the output of the plugin that sanitizes last.
+	 */
+	private function stored_for_a_sanitized_role() {
+		return $this->uses_previous_versions() ? self::SANITIZED_SVG : self::SAFE_SVG_OUTPUT;
 	}
 
 	/* Loading. */
@@ -34,16 +47,14 @@ class SafeSvgTest extends CompatTestCase {
 			? array( self::SAFE_SVG, 'wp-svg-images/wp-svg-images.php' )
 			: array( 'wp-svg-images/wp-svg-images.php', self::SAFE_SVG );
 
-		$this->assertContains( $this->scenario(), array( 'safe-svg-first', 'safe-svg-last' ) );
+		$this->assertContains( $this->scenario(), array( 'safe-svg-first', 'safe-svg-last', 'safe-svg-previous' ) );
 		$this->assertSame( $expected, get_option( 'active_plugins' ) );
 		$this->assertTrue( class_exists( 'SafeSvg\safe_svg', false ) );
 		$this->assertCount( 1, $this->plugin_instances() );
 	}
 
 	public function test_safe_svg_runs_at_the_pinned_version() {
-		$manifest = json_decode( file_get_contents( dirname( __DIR__ ) . '/plugins.json' ), true );
-
-		$this->assertSame( $manifest['plugins']['safe-svg'], get_plugins()[ self::SAFE_SVG ]['Version'] );
+		$this->assertSame( $this->pinned_version( 'safe-svg' ), get_plugins()[ self::SAFE_SVG ]['Version'] );
 	}
 
 	public function test_first_loaded_plugin_supplies_every_sanitizer_class() {
@@ -75,7 +86,7 @@ class SafeSvgTest extends CompatTestCase {
 
 	/* Uploads: Safe SVG has the last word. */
 
-	public function test_sanitized_upload_is_stored_in_safe_svgs_format() {
+	public function test_sanitized_upload_is_stored_in_the_format_of_the_plugin_that_sanitizes_last() {
 		$this->set_permissions( array( 'author' => 1 ) );
 		$this->log_in_as( 'author' );
 
@@ -83,7 +94,7 @@ class SafeSvgTest extends CompatTestCase {
 
 		$this->assertIsInt( $id );
 		$this->assertSame( 'image/svg+xml', get_post_mime_type( $id ) );
-		$this->assertSame( self::SAFE_SVG_OUTPUT, $this->stored_content( $id ) );
+		$this->assertSame( $this->stored_for_a_sanitized_role(), $this->stored_content( $id ) );
 	}
 
 	public function test_unrestricted_role_gets_its_upload_sanitized_by_safe_svg() {
@@ -110,7 +121,7 @@ class SafeSvgTest extends CompatTestCase {
 
 		$id = $this->media_upload( self::DIRTY_SVG );
 
-		$this->assertSame( self::SAFE_SVG_OUTPUT, $this->stored_content( $id ) );
+		$this->assertSame( $this->stored_for_a_sanitized_role(), $this->stored_content( $id ) );
 	}
 
 	/**
@@ -125,13 +136,20 @@ class SafeSvgTest extends CompatTestCase {
 	public function test_role_disabled_in_this_plugin_uploads_svg_through_safe_svg_pinned_for_deferred_fix( $permissions ) {
 		$this->set_permissions( $permissions );
 		$this->log_in_as( 'author' );
-		$this->assertArrayNotHasKey( 'svg', get_allowed_mime_types(), 'This plugin does not allow the type' );
+		// The current Safe SVG allows the type during an upload only, the older
+		// release on every request.
+		$this->assertSame( $this->uses_previous_versions(), isset( get_allowed_mime_types()['svg'] ) );
+		$plugin = $this->plugin();
+		remove_filter( 'upload_mimes', array( $plugin, 'add_svg_mime' ) );
+		$without_this_plugin = isset( get_allowed_mime_types()['svg'] );
+		add_filter( 'upload_mimes', array( $plugin, 'add_svg_mime' ) );
+		$this->assertSame( $this->uses_previous_versions(), $without_this_plugin, 'This plugin itself does not allow the type' );
 
 		$id = $this->media_upload( self::DIRTY_SVG );
 
 		$this->assertIsInt( $id );
 		$this->assertSame( 'image/svg+xml', get_post_mime_type( $id ) );
-		$this->assertSame( self::SAFE_SVG_OUTPUT, $this->stored_content( $id ) );
+		$this->assertSame( $this->stored_for_a_sanitized_role(), $this->stored_content( $id ) );
 	}
 
 	public function provide_settings_that_disable_the_author() {
@@ -213,29 +231,35 @@ class SafeSvgTest extends CompatTestCase {
 	/* Results that depend on which sanitizer copy is loaded. */
 
 	/**
-	 * With Safe SVG's copy of the library the upload works; with the bundled
-	 * copy it ends in the Error or LogicException that the `integration`
-	 * suite pins.
+	 * With the current Safe SVG's copy of the library the upload works; with
+	 * the bundled copy it ends in the Error or LogicException that the
+	 * `integration` suite pins. The older Safe SVG's copy has the `<use>`
+	 * defect as well, and handles CDATA because that release ships
+	 * HTMLPurifier.
 	 *
 	 * @dataProvider provide_svg_the_bundled_sanitizer_fails_on
 	 */
-	public function test_uploads_that_break_the_bundled_sanitizer_work_with_safe_svgs_copy( $inner, $stored_inner, $throwable ) {
+	public function test_uploads_that_break_the_bundled_sanitizer_depend_on_the_loaded_copy( $inner, $stored_inner, $throwable, $works_with_the_older_copy ) {
 		$this->set_permissions( array( 'author' => 1 ) );
 		$this->log_in_as( 'author' );
+		$works = $this->uses_previous_versions() ? $works_with_the_older_copy : $this->safe_svg_loaded_first();
 
-		if ( ! $this->safe_svg_loaded_first() ) {
+		if ( ! $works ) {
 			$this->expectException( $throwable );
 		}
 		$id = $this->media_upload( $this->svg( $inner ) );
 
 		$this->assertIsInt( $id );
-		$this->assertSame( '<?xml version="1.0" encoding="UTF-8"?> ' . $this->svg( $stored_inner ) . ' ', $this->stored_content( $id ) );
+		$this->assertSame(
+			$this->uses_previous_versions() ? $this->svg( $stored_inner ) : '<?xml version="1.0" encoding="UTF-8"?> ' . $this->svg( $stored_inner ) . ' ',
+			$this->stored_content( $id )
+		);
 	}
 
 	public function provide_svg_the_bundled_sanitizer_fails_on() {
 		return array(
-			'CDATA section in a style element'   => array( self::CDATA_STYLE . '<rect/>', '<style>rect{fill:red}</style><rect></rect>', Error::class ),
-			'use element referencing its parent' => array( '<g id="a"><use href="#a"/></g>', '<g id="a"></g>', LogicException::class ),
+			'CDATA section in a style element'   => array( self::CDATA_STYLE . '<rect/>', '<style>rect{fill:red}</style><rect></rect>', Error::class, true ),
+			'use element referencing its parent' => array( '<g id="a"><use href="#a"/></g>', '<g id="a"></g>', LogicException::class, false ),
 		);
 	}
 

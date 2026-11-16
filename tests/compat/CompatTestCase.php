@@ -30,6 +30,23 @@ abstract class CompatTestCase extends WPSVGIntegrationTestCase {
 	}
 
 	/**
+	 * @return bool Whether the scenario runs the older third-party versions.
+	 */
+	protected function uses_previous_versions() {
+		return WPSVG_COMPAT_PREVIOUS_VERSIONS;
+	}
+
+	/**
+	 * @param string $slug Plugin folder name.
+	 * @return string The version the manifest pins for the running scenario.
+	 */
+	protected function pinned_version( $slug ) {
+		$manifest = json_decode( file_get_contents( __DIR__ . '/plugins.json' ), true );
+
+		return $manifest[ $this->uses_previous_versions() ? 'previous_plugins' : 'plugins' ][ $slug ];
+	}
+
+	/**
 	 * @return string[] Active plugins in the order WordPress loaded them.
 	 */
 	protected function active_plugins() {

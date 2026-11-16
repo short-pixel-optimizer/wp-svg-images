@@ -8,6 +8,9 @@ require_once dirname( __DIR__ ) . '/CompatTestCase.php';
  *
  * Beaver Builder reads the module type from the `fl_upload_type` field of the
  * upload request and does its check on `wp_handle_upload_prefilter`.
+ *
+ * The scenario `beaver-builder-previous` runs a release whose photo pattern
+ * is shorter and which has no audio module yet.
  */
 class BeaverBuilderTest extends CompatTestCase {
 
@@ -41,11 +44,10 @@ class BeaverBuilderTest extends CompatTestCase {
 	/* Loading. */
 
 	public function test_scenario_runs_beaver_builder_at_the_pinned_version() {
-		$manifest = json_decode( file_get_contents( dirname( __DIR__ ) . '/plugins.json' ), true );
 
-		$this->assertSame( 'beaver-builder', $this->scenario() );
+		$this->assertContains( $this->scenario(), array( 'beaver-builder', 'beaver-builder-previous' ) );
 		$this->assertSame( array( 'beaver-builder-lite-version/fl-builder.php', 'wp-svg-images/wp-svg-images.php' ), get_option( 'active_plugins' ) );
-		$this->assertSame( $manifest['plugins']['beaver-builder-lite-version'], FL_BUILDER_VERSION );
+		$this->assertSame( $this->pinned_version( 'beaver-builder-lite-version' ), FL_BUILDER_VERSION );
 		$this->assertSame( array( 'wp-svg-images/svg-sanitizer' ), $this->sanitizer_copies() );
 	}
 
@@ -86,6 +88,7 @@ class BeaverBuilderTest extends CompatTestCase {
 		$this->assertStringContainsString( '|png|', $own['photo'] );
 		$this->assertStringNotContainsString( 'svg', $own['photo'] );
 		$this->assertSame( str_replace( '|png|', '|png|svgz?|', $own['photo'] ), $final['photo'] );
+		$this->assertSame( ! $this->uses_previous_versions(), false !== strpos( $own['photo'], 'avif' ), 'The pattern grew between the two releases' );
 		unset( $own['photo'], $final['photo'] );
 		$this->assertSame( $own, $final, 'The other patterns are untouched' );
 	}
@@ -96,6 +99,12 @@ class BeaverBuilderTest extends CompatTestCase {
 	 * @dataProvider provide_modules_and_files
 	 */
 	public function test_beaver_builder_accepts_svg_in_the_photo_module_only( $module, $name, $accepted ) {
+		if ( 'audio' === $module && $this->uses_previous_versions() ) {
+			$patterns = apply_filters( 'fl_module_upload_regex', array( 'photo' => '#(png|x)#' ), 'photo', 'svg', array() );
+			$this->assertArrayNotHasKey( 'audio', $patterns, 'This plugin adds no pattern of its own; the older release has no audio module' );
+
+			return;
+		}
 		$error = $this->beaver_builder_check( $module, $name );
 
 		if ( $accepted ) {

@@ -10,6 +10,9 @@ require_once dirname( __DIR__ ) . '/CompatTestCase.php';
  * uploaded in wp-content/uploads/wpallimport/files/" does: the file waits in
  * that folder and PMXI_API::upload_image() turns it into an attachment. No
  * user is logged in, as in a scheduled import.
+ *
+ * The scenario `wp-all-import-previous` runs a release from before WP All
+ * Import sanitized SVG files itself and before it shipped HTMLPurifier.
  */
 class WpAllImportTest extends CompatTestCase {
 
@@ -48,14 +51,13 @@ class WpAllImportTest extends CompatTestCase {
 
 	public function test_scenario_runs_wp_all_import_at_the_pinned_version_with_its_tables() {
 		global $wpdb;
-		$manifest = json_decode( file_get_contents( dirname( __DIR__ ) . '/plugins.json' ), true );
 
-		$this->assertSame( 'wp-all-import', $this->scenario() );
+		$this->assertContains( $this->scenario(), array( 'wp-all-import', 'wp-all-import-previous' ) );
 		$this->assertSame( array( 'wp-all-import/plugin.php', 'wp-svg-images/wp-svg-images.php' ), get_option( 'active_plugins' ) );
-		$this->assertSame( $manifest['plugins']['wp-all-import'], PMXI_VERSION );
+		$this->assertSame( $this->pinned_version( 'wp-all-import' ), PMXI_VERSION );
 		$this->assertSame( $wpdb->prefix . 'pmxi_images', $wpdb->get_var( "SHOW TABLES LIKE '{$wpdb->prefix}pmxi_images'" ) );
 		$this->assertSame( 10, has_filter( 'wp_all_import_image_mime_type', array( $this->plugin(), 'wp_all_import_svgs' ) ) );
-		$this->assertSame( array( 'wp-svg-images/svg-sanitizer' ), $this->sanitizer_copies(), 'WP All Import keeps its own copy under another namespace' );
+		$this->assertSame( array( 'wp-svg-images/svg-sanitizer' ), $this->sanitizer_copies(), 'WP All Import has no copy, or keeps it under another namespace' );
 	}
 
 	/* Imports. */
@@ -81,16 +83,44 @@ class WpAllImportTest extends CompatTestCase {
 		$this->assertSame( '', get_post_mime_type( $id ) );
 	}
 
-	public function test_imported_svg_is_sanitized_by_wp_all_import_and_measured_by_this_plugin() {
+	public function test_imported_svg_is_measured_by_this_plugin() {
 		$id = $this->import( 'logo.svg', self::SIZED_DIRTY_SVG );
 
-		$stored = $this->stored_content( $id );
-		$this->assertStringNotContainsString( 'script', $stored );
-		$this->assertStringNotContainsString( 'onload', $stored );
-		$this->assertStringContainsString( '<rect></rect>', $stored );
 		$metadata = wp_get_attachment_metadata( $id );
 		$this->assertSame( 30.0, $metadata['width'] );
 		$this->assertSame( 20.0, $metadata['height'] );
+	}
+
+	/**
+	 * Pins the defect in WPSVG::wp_all_import_svgs(): the plugin gives every
+	 * imported `.svg` the SVG type and sanitizes nothing on this path. With
+	 * the current WP All Import that goes unnoticed, because it sanitizes
+	 * the file itself; with the older release the attachment keeps its
+	 * script. When fixed, the stored file has no script in either scenario.
+	 *
+	 * @group pinned
+	 * @dataProvider provide_attachment_kinds
+	 */
+	public function test_imported_svg_is_sanitized_by_wp_all_import_alone_pinned_for_deferred_fix( $kind ) {
+		$id = $this->import( 'logo.svg', self::SIZED_DIRTY_SVG, $kind );
+
+		$this->assertIsInt( $id );
+		$this->assertSame( 'image/svg+xml', get_post_mime_type( $id ) );
+		$stored = $this->stored_content( $id );
+		if ( $this->uses_previous_versions() ) {
+			$this->assertSame( self::SIZED_DIRTY_SVG, $stored, 'Nobody sanitized the file' );
+		} else {
+			$this->assertStringNotContainsString( 'script', $stored );
+			$this->assertStringNotContainsString( 'onload', $stored );
+			$this->assertStringContainsString( '<rect></rect>', $stored );
+		}
+	}
+
+	public function provide_attachment_kinds() {
+		return array(
+			'image' => array( 'images' ),
+			'file'  => array( 'files' ),
+		);
 	}
 
 	/**
@@ -130,14 +160,6 @@ class WpAllImportTest extends CompatTestCase {
 		$this->assertIsInt( $id );
 		$this->assertStringEndsWith( '/LOGO.svg', get_attached_file( $id ) );
 		$this->assertSame( 'image/svg+xml', get_post_mime_type( $id ) );
-	}
-
-	public function test_svg_imported_as_a_file_attachment_is_typed_and_sanitized_too() {
-		$id = $this->import( 'logo.svg', self::SIZED_DIRTY_SVG, 'files' );
-
-		$this->assertIsInt( $id );
-		$this->assertSame( 'image/svg+xml', get_post_mime_type( $id ) );
-		$this->assertStringNotContainsString( 'script', $this->stored_content( $id ) );
 	}
 
 	/**
@@ -185,16 +207,21 @@ class WpAllImportTest extends CompatTestCase {
 	/* HTMLPurifier, which WP All Import ships. */
 
 	/**
-	 * With WP All Import active, HTMLPurifier can be loaded, so an upload
-	 * with a CDATA section no longer ends in the Error pinned in
-	 * BaselineTest.
+	 * With the current WP All Import active, HTMLPurifier can be loaded, so
+	 * an upload with a CDATA section no longer ends in the Error pinned in
+	 * BaselineTest. The older release does not ship the library.
 	 */
-	public function test_cdata_upload_works_because_wp_all_import_ships_htmlpurifier() {
+	public function test_cdata_upload_works_when_wp_all_import_ships_htmlpurifier() {
 		$this->set_permissions( array( 'author' => 1 ) );
 		$this->log_in_as( 'author' );
-		$this->assertTrue( class_exists( 'HTMLPurifier' ) );
-		$this->assertStringStartsWith( WP_PLUGIN_DIR . '/wp-all-import/', ( new ReflectionClass( 'HTMLPurifier' ) )->getFileName() );
+		$this->assertSame( ! $this->uses_previous_versions(), class_exists( 'HTMLPurifier' ) );
 
+		if ( $this->uses_previous_versions() ) {
+			$this->expectException( Error::class );
+			$this->expectExceptionMessage( 'HTMLPurifier' );
+		} else {
+			$this->assertStringStartsWith( WP_PLUGIN_DIR . '/wp-all-import/', ( new ReflectionClass( 'HTMLPurifier' ) )->getFileName() );
+		}
 		$id = $this->media_upload( $this->svg( self::CDATA_STYLE . '<rect/>' ) );
 
 		$this->assertIsInt( $id );

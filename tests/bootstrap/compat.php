@@ -37,8 +37,11 @@ define( 'WPSVG_TESTS_FIXTURES_DIR', dirname( __DIR__ ) . '/fixtures/' );
 /** Name of the running scenario, a key of tests/compat/scenarios.php. */
 define( 'WPSVG_COMPAT_SCENARIO', $wpsvg_scenario_name );
 
+/** Whether the scenario runs the older versions of the third parties. */
+define( 'WPSVG_COMPAT_PREVIOUS_VERSIONS', isset( $wpsvg_scenario['versions'] ) && 'previous' === $wpsvg_scenario['versions'] );
+
 // Where compose.yml mounts what setup.sh downloaded.
-$wpsvg_plugins_dir   = '/opt/compat-plugins';
+$wpsvg_plugins_dir   = WPSVG_COMPAT_PREVIOUS_VERSIONS ? '/opt/compat-plugins-previous' : '/opt/compat-plugins';
 $wpsvg_libraries_dir = '/opt/compat-libraries';
 
 /**
@@ -74,7 +77,10 @@ foreach ( $wpsvg_scenario['plugins'] as $wpsvg_basename ) {
 	$wpsvg_needs_wp  = wpsvg_compat_plugin_header( $wpsvg_file, 'Requires at least' );
 	$wpsvg_label     = dirname( $wpsvg_basename ) . ' ' . wpsvg_compat_plugin_header( $wpsvg_file, 'Version' );
 	require rtrim( getenv( 'WP_CORE_DIR' ), '/' ) . '/wp-includes/version.php';
-	if ( '' !== $wpsvg_needs_php && version_compare( PHP_VERSION, $wpsvg_needs_php, '<' ) ) {
+	$wpsvg_wp_up_to  = isset( $wpsvg_scenario['wordpress_up_to'] ) ? $wpsvg_scenario['wordpress_up_to'] : '';
+	if ( '' !== $wpsvg_wp_up_to && version_compare( preg_replace( '/-.*$/', '', $wp_version ), $wpsvg_wp_up_to . '.999', '>' ) ) {
+		$wpsvg_skip_reason = "$wpsvg_label is run up to WordPress $wpsvg_wp_up_to only, this is WordPress $wp_version";
+	} elseif ( '' !== $wpsvg_needs_php && version_compare( PHP_VERSION, $wpsvg_needs_php, '<' ) ) {
 		$wpsvg_skip_reason = "$wpsvg_label requires PHP $wpsvg_needs_php, this is PHP " . PHP_VERSION;
 	} elseif ( '' !== $wpsvg_needs_wp && version_compare( preg_replace( '/-.*$/', '', $wp_version ), $wpsvg_needs_wp, '<' ) ) {
 		$wpsvg_skip_reason = "$wpsvg_label requires WordPress $wpsvg_needs_wp, this is WordPress $wp_version";

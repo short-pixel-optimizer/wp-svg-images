@@ -28,6 +28,12 @@ define( 'WPLANG', '' );
 // directory, because some of those plugins create folders there.
 if ( 'compat' === getenv( 'WPSVG_SUITE' ) ) {
 	define( 'UPLOADS', 'wp-content/uploads-compat' );
-	define( 'WP_PLUGIN_DIR', '/opt/compat-plugins' );
+	// Scenarios with `versions` => `previous` run the older third-party
+	// versions, which have a plugins directory of their own.
+	$wpsvg_compat_scenarios = require dirname( __DIR__ ) . '/compat/scenarios.php';
+	$wpsvg_compat_scenario  = (string) getenv( 'WPSVG_COMPAT_SCENARIO' );
+	$wpsvg_compat_previous  = isset( $wpsvg_compat_scenarios[ $wpsvg_compat_scenario ]['versions'] )
+		&& 'previous' === $wpsvg_compat_scenarios[ $wpsvg_compat_scenario ]['versions'];
+	define( 'WP_PLUGIN_DIR', $wpsvg_compat_previous ? '/opt/compat-plugins-previous' : '/opt/compat-plugins' );
 	define( 'WP_PLUGIN_URL', 'http://' . WP_TESTS_DOMAIN . '/wp-content/plugins' );
 }

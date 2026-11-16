@@ -6,6 +6,9 @@ require_once dirname( __DIR__ ) . '/CompatTestCase.php';
  * The plugin next to the Gutenberg plugin, which replaces WordPress's own
  * image block with a newer one. The plugin adds width and height to the
  * block's `<img>` through `render_block`, whatever renders the block.
+ *
+ * The scenario `gutenberg-previous` runs an older Gutenberg release, the
+ * newest that still supports the oldest WordPress of the matrix.
  */
 class GutenbergTest extends CompatTestCase {
 
@@ -43,11 +46,10 @@ class GutenbergTest extends CompatTestCase {
 	}
 
 	public function test_scenario_runs_the_gutenberg_plugin_at_the_pinned_version() {
-		$manifest = json_decode( file_get_contents( dirname( __DIR__ ) . '/plugins.json' ), true );
 
-		$this->assertSame( 'gutenberg', $this->scenario() );
+		$this->assertContains( $this->scenario(), array( 'gutenberg', 'gutenberg-previous' ) );
 		$this->assertSame( array( 'gutenberg/gutenberg.php', 'wp-svg-images/wp-svg-images.php' ), get_option( 'active_plugins' ) );
-		$this->assertSame( $manifest['plugins']['gutenberg'], GUTENBERG_VERSION );
+		$this->assertSame( $this->pinned_version( 'gutenberg' ), GUTENBERG_VERSION );
 	}
 
 	public function test_image_block_is_rendered_by_the_gutenberg_plugin() {

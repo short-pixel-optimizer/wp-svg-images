@@ -12,7 +12,13 @@
  *                the libraries directory;
  * - `activate`:  optional; plugins whose activation routine runs at the
  *                start of `init`, for plugins that create database tables
- *                on activation.
+ *                on activation;
+ * - `versions`:  optional; `previous` runs the older version of each third
+ *                party (`previous_plugins` in the manifest), chosen because
+ *                the part this plugin relies on differs there;
+ * - `wordpress_up_to`: optional; newest WordPress branch (`6.9`) an older
+ *                third-party version is run on. Later versions skip the
+ *                scenario with that reason.
  *
  * Versions are pinned in tests/compat/plugins.json.
  */
@@ -54,6 +60,34 @@ return array(
 		'tests'     => 'Gutenberg',
 		'plugins'   => array( 'gutenberg/gutenberg.php', 'wp-svg-images/wp-svg-images.php' ),
 		'libraries' => array(),
+	),
+	'safe-svg-previous'       => array(
+		'tests'     => 'SafeSvg',
+		'plugins'   => array( 'safe-svg/safe-svg.php', 'wp-svg-images/wp-svg-images.php' ),
+		'libraries' => array(),
+		'versions'  => 'previous',
+	),
+	'wp-all-import-previous'  => array(
+		'tests'     => 'WpAllImport',
+		'plugins'   => array( 'wp-all-import/plugin.php', 'wp-svg-images/wp-svg-images.php' ),
+		'libraries' => array(),
+		'activate'  => array( 'wp-all-import/plugin.php' ),
+		'versions'  => 'previous',
+	),
+	'beaver-builder-previous' => array(
+		'tests'     => 'BeaverBuilder',
+		'plugins'   => array( 'beaver-builder-lite-version/fl-builder.php', 'wp-svg-images/wp-svg-images.php' ),
+		'libraries' => array(),
+		'versions'  => 'previous',
+		// This release loads its translations too early for later WordPress
+		// versions, which report that on every request.
+		'wordpress_up_to' => '6.4',
+	),
+	'gutenberg-previous'      => array(
+		'tests'     => 'Gutenberg',
+		'plugins'   => array( 'gutenberg/gutenberg.php', 'wp-svg-images/wp-svg-images.php' ),
+		'libraries' => array(),
+		'versions'  => 'previous',
 	),
 	'beaver-builder' => array(
 		'tests'     => 'BeaverBuilder',

@@ -63,6 +63,13 @@ once per scenario, each on an empty database, and reports one total.
 - **Versions** are pinned in `tests/compat/plugins.json`. Plugins come from
   wordpress.org, libraries from the address in the manifest. Changing a
   version there replaces the cached copy on the next run.
+- **Second versions.** `previous_plugins` in the manifest pins an older
+  release of a third party where the part this plugin relies on differs. A
+  scenario with `versions` => `previous` runs the same test folder against
+  those releases, from a plugins directory of their own; the tests ask
+  `uses_previous_versions()` where the two releases behave differently, and
+  `pinned_version()` for the version to expect. A scenario can name the newest
+  WordPress branch an old release is run on (`wordpress_up_to`).
 - **Downloads** happen in the `setup` container only, into
   `tests/.cache/compat/`. The test run itself stays offline.
 - **Own plugins directory.** The suite sets `WP_PLUGIN_DIR` to a folder that
@@ -90,6 +97,10 @@ once per scenario, each on an empty database, and reports one total.
 | `beaver-builder` | Beaver Builder Lite, then this plugin | `tests/compat/BeaverBuilder/` |
 | `shortpixel` | ShortPixel Image Optimizer (activation routine run), then this plugin | `tests/compat/ShortPixel/` |
 | `gutenberg` | Gutenberg plugin, then this plugin | `tests/compat/Gutenberg/` |
+| `safe-svg-previous` | older Safe SVG (sanitizes in the prefilter only, allows the SVG type on every request, ships HTMLPurifier), then this plugin | `tests/compat/SafeSvg/` |
+| `wp-all-import-previous` | older WP All Import (does not sanitize SVG, no HTMLPurifier), then this plugin | `tests/compat/WpAllImport/` |
+| `beaver-builder-previous` | older Beaver Builder Lite (shorter photo pattern, no audio module), then this plugin; up to WordPress 6.4 | `tests/compat/BeaverBuilder/` |
+| `gutenberg-previous` | older Gutenberg, the newest that supports WordPress 6.4, then this plugin | `tests/compat/Gutenberg/` |
 
 ### The `cli` suite
 
