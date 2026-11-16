@@ -34,7 +34,9 @@ See `TESTING.md` for the full instructions. Suite names (exact, lowercase):
 shows which are implemented.
 
 ```sh
-bin/test.sh                                   # all implemented suites
+bin/test.sh                                   # the six PHPUnit suites
+bin/test.sh e2e                               # browser suite, only when named
+bin/test.sh all e2e                           # full release gate
 bin/test.sh unit                              # one suite
 bin/test.sh unit --class SanitizerTest        # one class
 bin/test.sh unit --filter 'SanitizerTest::test_name'
@@ -44,7 +46,7 @@ bin/test.sh --verify                          # prove the environment works
 ```
 
 - Always report the `Executed: N tests` count, never just "green".
-- Zero executed tests is a failure (exit 1); unknown or planned suite names exit 2.
+- Zero executed tests is a failure (exit 1); unknown suite names exit 2.
 - Only one run at a time; a second run exits 3.
 - Test dependencies: `tests/composer.json` (lock resolved for PHP 7.4).
 

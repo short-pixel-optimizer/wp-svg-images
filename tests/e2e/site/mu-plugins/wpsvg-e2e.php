@@ -77,9 +77,9 @@ add_action(
  * in place, as right after activation).
  *
  * Deletes every attachment and post, the plugin's options and the dismissed
- * notice of every user, makes sure one user per role exists (`admin`,
- * `editor`, `author`, `contributor` and `subscriber`) and switches the block
- * editor's welcome guide off for them.
+ * notice of every user, makes sure one user per role exists with exactly
+ * that role (`admin`, `editor`, `author`, `contributor` and `subscriber`)
+ * and switches the block editor's welcome guide off for them.
  *
  * @param WP_REST_Request $request
  * @return array The state after the reset; see wpsvg_e2e_state().
@@ -103,6 +103,9 @@ function wpsvg_e2e_reset( WP_REST_Request $request ) {
 					'role'       => $role,
 				)
 			);
+		} elseif ( array( $role ) !== array_values( $user->roles ) ) {
+			// A test may have changed the role through the Users screen.
+			$user->set_role( $role );
 		}
 	}
 	delete_metadata( 'user', 0, 'wpsvg_notice_dismissed', '', true );

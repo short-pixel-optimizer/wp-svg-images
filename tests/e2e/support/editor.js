@@ -83,4 +83,39 @@ function blocks( page ) {
 	return page.evaluate( () => window.wp.data.select( 'core/block-editor' ).getBlocks().map( ( block ) => ( { name: block.name, attributes: block.attributes } ) ) );
 }
 
-module.exports = { openNewPost, editorCanvas, editorError, uploadInImageBlock, blocks };
+/**
+ * Publishes the post that is open in the editor, through the editor's own
+ * save, and returns the address of the published post.
+ *
+ * @param {import('@playwright/test').Page} page
+ * @param {string} title Post title.
+ * @return {Promise<string>} Address of the post on the front end.
+ */
+async function publishPost( page, title ) {
+	return page.evaluate( async ( postTitle ) => {
+		const { dispatch, select } = window.wp.data;
+		dispatch( 'core/editor' ).editPost( { title: postTitle, status: 'publish' } );
+		await dispatch( 'core/editor' ).savePost();
+		if ( select( 'core/editor' ).didPostSaveRequestFail() ) {
+			throw new Error( 'The post could not be saved.' );
+		}
+		return select( 'core/editor' ).getPermalink();
+	}, title );
+}
+
+/**
+ * Sets the caption and alternative text of the first block, as typing them
+ * into the block does.
+ *
+ * @param {import('@playwright/test').Page} page
+ * @param {{caption?: string, alt?: string}} attributes
+ */
+async function updateFirstBlock( page, attributes ) {
+	await page.evaluate( ( changed ) => {
+		const { dispatch, select } = window.wp.data;
+		const [ block ] = select( 'core/block-editor' ).getBlocks();
+		dispatch( 'core/block-editor' ).updateBlockAttributes( block.clientId, changed );
+	}, attributes );
+}
+
+module.exports = { openNewPost, editorCanvas, editorError, uploadInImageBlock, blocks, publishPost, updateFirstBlock };

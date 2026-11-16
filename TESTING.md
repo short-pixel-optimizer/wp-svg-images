@@ -287,7 +287,7 @@ List them with `bin/test.sh all --group pinned`. Lifecycle rules: `CLAUDE.md`,
 
 ## CI
 
-- Both workflows run on every push to `updates`, on every pull request into
+- All workflows run on every push to `updates`, on every pull request into
   `updates` or `main`, and by hand. A pull request from `updates` into `main`
   is skipped (and reported as passing) because the push to `updates` already
   tested that commit, so nothing runs twice. Pushes to `main` do not run CI.
@@ -295,6 +295,10 @@ List them with `bin/test.sh all --group pinned`. Lifecycle rules: `CLAUDE.md`,
   once, then `bin/test.sh all` on every matrix cell. The advisory cell may fail
   without failing the workflow. Each job writes the executed counts to the job
   summary and uploads `tests/.results/`. No retries.
+- `.github/workflows/e2e.yml` — the browser part of the release gate. Runs
+  `bin/test.sh e2e` on the oldest and the newest cell (PHP 7.4 / WP 6.4 and
+  PHP 8.5 / latest), both blocking, and uploads the report with screenshots
+  and traces of failed tests.
 - `.github/workflows/lint.yml` — advisory only: `php -l` on every supported PHP
   version and ShellCheck on the scripts.
 
