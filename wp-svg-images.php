@@ -614,6 +614,11 @@ if( ! class_exists('WPSVG') ){
 		 * When the dimensions cannot be read, `width="0" height="0"` is
 		 * inserted. The stored attachment metadata is not used.
 		 *
+		 * @todo The check for existing dimensions searches the whole block
+		 *       HTML for the text `width=` or `height=`, so a caption or
+		 *       alternative text containing either (for example "Max
+		 *       height=20") leaves the image without dimensions. Look at the
+		 *       attributes of the `<img>` element only.
 		 * @todo An SVG without readable dimensions (no size and no `viewBox`,
 		 *       and every `.svgz` file) gets `width="0" height="0"`, which
 		 *       hides the image on the page. Leave the block unchanged when

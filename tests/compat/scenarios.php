@@ -10,9 +10,9 @@
  *                basenames relative to the plugins directory;
  * - `libraries`: files to load before WordPress, relative to
  *                the libraries directory;
- * - `activate`:  optional; plugins whose activation routine runs after the
- *                plugin files are loaded, for plugins that create database
- *                tables on activation.
+ * - `activate`:  optional; plugins whose activation routine runs at the
+ *                start of `init`, for plugins that create database tables
+ *                on activation.
  *
  * Versions are pinned in tests/compat/plugins.json.
  */
@@ -43,6 +43,17 @@ return array(
 		'plugins'   => array( 'wp-all-import/plugin.php', 'wp-svg-images/wp-svg-images.php' ),
 		'libraries' => array(),
 		'activate'  => array( 'wp-all-import/plugin.php' ),
+	),
+	'shortpixel'     => array(
+		'tests'     => 'ShortPixel',
+		'plugins'   => array( 'shortpixel-image-optimiser/wp-shortpixel.php', 'wp-svg-images/wp-svg-images.php' ),
+		'libraries' => array(),
+		'activate'  => array( 'shortpixel-image-optimiser/wp-shortpixel.php' ),
+	),
+	'gutenberg'      => array(
+		'tests'     => 'Gutenberg',
+		'plugins'   => array( 'gutenberg/gutenberg.php', 'wp-svg-images/wp-svg-images.php' ),
+		'libraries' => array(),
 	),
 	'beaver-builder' => array(
 		'tests'     => 'BeaverBuilder',

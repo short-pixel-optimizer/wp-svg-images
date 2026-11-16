@@ -373,6 +373,32 @@ class AttachmentTest extends WPSVGIntegrationTestCase {
 
 	/**
 	 * Pins the defect in WPSVG::fix_missing_width_height_on_image_block():
+	 * the text `width=` or `height=` anywhere in the block, not only as an
+	 * attribute of the image, stops the dimensions from being added. When
+	 * fixed, the image gets `width="30" height="20"`.
+	 *
+	 * @group pinned
+	 * @dataProvider provide_block_text_that_mentions_a_dimension
+	 */
+	public function test_text_mentioning_a_dimension_leaves_the_image_without_dimensions_pinned_for_deferred_fix( $alt, $caption ) {
+		$id    = $this->svg_attachment();
+		$block = '<!-- wp:image {"id":' . $id . ',"sizeSlug":"full"} --><figure class="wp-block-image size-full"><img src="' . wp_get_attachment_url( $id ) . '" alt="' . $alt . '" class="wp-image-' . $id . '"/><figcaption class="wp-element-caption">' . $caption . '</figcaption></figure><!-- /wp:image -->';
+
+		$html = do_blocks( $block );
+
+		$this->assertStringNotContainsString( 'width="30"', $html );
+		$this->assertStringNotContainsString( 'height="20"', $html );
+	}
+
+	public function provide_block_text_that_mentions_a_dimension() {
+		return array(
+			'caption'          => array( '', 'Max height=20' ),
+			'alternative text' => array( 'Logo, width=30', 'Our logo' ),
+		);
+	}
+
+	/**
+	 * Pins the defect in WPSVG::fix_missing_width_height_on_image_block():
 	 * when the dimensions cannot be read, the image gets `width="0"
 	 * height="0"`, which hides it. When fixed, the block is left without
 	 * those attributes (or gets usable ones).

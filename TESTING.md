@@ -67,7 +67,7 @@ once per scenario, each on an empty database, and reports one total.
 - **Activation routines.** Activating through the `active_plugins` option
   runs no activation hook. A scenario lists under `activate` the plugins that
   need theirs (WP All Import creates its tables there); the bootstrap fires it
-  once all plugin files are loaded.
+  at the start of `init`.
 - **Unsupported versions.** When a third-party plugin's header asks for a
   newer WordPress or PHP than the cell runs, the bootstrap does not load it
   and every test of that scenario is skipped with that reason. The skips are
@@ -77,12 +77,14 @@ once per scenario, each on an empty database, and reports one total.
 
 | Scenario | Active | Tests |
 |---|---|---|
-| `baseline` | this plugin only | `tests/compat/Baseline/` |
+| `baseline` | this plugin only; every third party installed but inactive (includes ShortPixel Image Optimizer inactive and the Git Updater headers) | `tests/compat/Baseline/` |
 | `safe-svg-first` | Safe SVG, then this plugin (WordPress's default order) | `tests/compat/SafeSvg/` |
 | `safe-svg-last` | this plugin, then Safe SVG | `tests/compat/SafeSvg/` |
 | `htmlpurifier` | this plugin, HTMLPurifier loaded | `tests/compat/HtmlPurifier/` |
 | `wp-all-import` | WP All Import (activation routine run), then this plugin | `tests/compat/WpAllImport/` |
 | `beaver-builder` | Beaver Builder Lite, then this plugin | `tests/compat/BeaverBuilder/` |
+| `shortpixel` | ShortPixel Image Optimizer (activation routine run), then this plugin | `tests/compat/ShortPixel/` |
+| `gutenberg` | Gutenberg plugin, then this plugin | `tests/compat/Gutenberg/` |
 
 ### One class, one test, one group
 
