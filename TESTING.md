@@ -192,6 +192,10 @@ List them with `bin/test.sh all --group pinned`. Lifecycle rules: `CLAUDE.md`,
   again.
 - **`admin_init` opens an output buffer** (`WPSVG::add_svg_support()`). Tests
   that fire `admin_init` must close it.
+- **`WPSVG::add_svg_support()` can run only once per PHP process**, because it
+  declares a global function. A test that calls it needs
+  `@runInSeparateProcess` and `@preserveGlobalState disabled`; see
+  `tests/integration/BootstrapTest.php`.
 - **`wp_handle_upload()` only accepts real HTTP uploads.** It checks
   `is_uploaded_file()`, which is always false in PHPUnit. Overriding `action`
   avoids the check but renames the prefilter hook to `{action}_prefilter`, so

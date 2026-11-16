@@ -261,8 +261,9 @@ if( ! class_exists('WPSVG') ){
 		 * @todo Gzipped files are sniffed as `application/gzip`, so `.svgz`
 		 *       uploads are never sanitized even though sanitize() handles
 		 *       gzip. SVG files whose content is not sniffed as SVG (for
-		 *       example a file that starts with an XML comment, sniffed as
-		 *       `text/plain`) are not sanitized either, while
+		 *       example a file that starts with a line break, spaces or an
+		 *       XML comment, sniffed as `text/html`, or an XHTML page) are
+		 *       not sanitized either and keep their scripts, while
 		 *       wp_check_filetype_and_ext() still accepts them as
 		 *       `image/svg+xml` by file name. Decide by the extension that
 		 *       WordPress will store (and by gzip magic bytes) rather than by
@@ -651,7 +652,10 @@ if( ! class_exists('WPSVG') ){
 		 * the current user's roles has a non-zero permission, a file name
 		 * ending in `.svg` or `.svgz` gets `ext` set accordingly and `type`
 		 * set to `image/svg+xml`, regardless of the file content and of what
-		 * WordPress detected. Other files and users are left unchanged.
+		 * WordPress detected. `proper_filename` is not touched, so it can still
+		 * hold a name WordPress proposed for the detected content (`logo.png`
+		 * for a PNG image named `logo.svg`). Other files and users are left
+		 * unchanged.
 		 *
 		 * @todo The extension check is case-sensitive, so `logo.SVG` is not
 		 *       recognised. Compare against strtolower( $filename ).
