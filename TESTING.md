@@ -212,5 +212,20 @@ List them with `bin/test.sh all --group pinned`. Lifecycle rules: `CLAUDE.md`,
   internal error handling on and never off, which silences later
   `simplexml_load_file()` warnings; the base test case resets it after each
   test. Wrap calls that may warn in `with_warnings_captured()`.
+- **`active_plugins` is fixed by the test bootstrap** through a
+  `pre_option_active_plugins` filter, so `update_option()` and
+  `deactivate_plugins()` do not change what WordPress reads. Add a later
+  filter, or remove the filters for one test; see `UpsellTest` and
+  `UninstallTest`.
+- **Roles outlive the database rollback.** `add_role()` also changes the
+  roles WordPress holds in memory; remove test roles in `tear_down()`.
+- **`upsell.php` is loaded with `include_once`.** The settings page prints the
+  offer only the first time it is rendered in a PHP process; tests of the
+  offer run in separate processes, other settings-page tests mark ShortPixel
+  Image Optimizer as active on the plugin instance.
+- **The AJAX handler checks the `DOING_AJAX` constant**, which
+  `WP_Ajax_UnitTestCase` does not define, and its simulated request fires
+  `admin_init`. `NoticeDismissalAjaxTest` therefore runs each test in its own
+  process.
 - **Plugin PHP files use CRLF line endings.** Keep them when editing.
 - **`bin/test.sh` targets bash 3.2** (macOS default). Avoid bash 4 features.

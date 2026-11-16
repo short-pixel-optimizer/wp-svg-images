@@ -83,6 +83,11 @@ if( ! class_exists('WPSVG') ){
 	 * Permissions are stored per role in the `wpsvg_settings` option as
 	 * `role_<slug>` => int, where 0 disables SVG upload, 1 allows sanitized
 	 * upload and 2 allows unrestricted (unsanitized) upload.
+	 *
+	 * @todo The plugin has no uninstall routine, so deleting it leaves the
+	 *       `wpsvg_settings` option, a pending `WPSVGActivated` option and
+	 *       the `wpsvg_notice_dismissed` user meta in the database. Add an
+	 *       uninstall.php that deletes them.
 	 */
 	class WPSVG{
 		/**
@@ -219,6 +224,10 @@ if( ! class_exists('WPSVG') ){
 		 * who have not dismissed it, and only on the `plugins`,
 		 * `plugin-install`, `upload` and `attachment` screens. Includes an
 		 * inline script that posts the dismissal to admin-ajax.php.
+		 *
+		 * @todo The second sentence reads "WP SVG images in now a part of";
+		 *       it should say "is now". Correct it here and in
+		 *       languages/wpsvg.pot.
 		 *
 		 * @return false|void False when the user lacks `manage_options`.
 		 */
@@ -456,7 +465,10 @@ if( ! class_exists('WPSVG') ){
 		 * Visiting the page dismisses the settings notice for the current user.
 		 * On POST with `plugin_sent` and a valid `save_these_settings` nonce
 		 * (field `settings_nonce`), replaces the whole `wpsvg_settings` option
-		 * with every posted `role_*` field cast to int. Lists only roles that
+		 * with every posted `role_*` field cast to int; an invalid nonce ends
+		 * the request in wp_die(). The method itself checks no capability:
+		 * WordPress registers it for users with `manage_options` only, and it
+		 * returns at once on any other screen. Lists only roles that
 		 * have the `upload_files` capability; a role without a saved value is
 		 * shown as "enable sanitized SVG upload". Includes upsell.php when
 		 * ShortPixel Image Optimizer is not installed or not active.
@@ -750,6 +762,13 @@ if( ! class_exists('WPSVG') ){
 		 * that render image previews, so SVGs show their file URL as preview.
 		 * Content without those exact template strings is returned unchanged,
 		 * which happens when WordPress changes the template markup.
+		 *
+		 * @todo Neither template condition exists in the media templates of
+		 *       the WordPress versions the plugin is tested with, so this
+		 *       method changes nothing there and the admin-wide output buffer
+		 *       only costs memory. WordPress shows the preview from
+		 *       `data.sizes.full`, which the stored dimensions provide. Remove
+		 *       the buffer and this method, or match the current markup.
 		 *
 		 * @param string $content Full admin page HTML.
 		 * @return string
