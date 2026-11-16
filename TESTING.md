@@ -41,7 +41,7 @@ planned suite without tests exits with code 2 instead of running nothing.
 | `unit` | implemented | Sanitizer library and `WPSVG` helpers, no WordPress | `tests/phpunit/unit.xml`, `tests/bootstrap/unit.php` |
 | `integration` | implemented | Real WordPress, database and uploads directory; the plugin is active through `active_plugins` | `tests/phpunit/integration.xml`, `tests/bootstrap/integration.php` |
 | `compat` | implemented | The plugin next to real third-party plugins and libraries, one run per scenario | `tests/phpunit/compat.xml`, `tests/bootstrap/compat.php`, `tests/compat/scenarios.php` |
-| `multisite` | planned | Network installs | — |
+| `multisite` | implemented | WordPress installed as a network, the plugin network-activated | `tests/phpunit/multisite.xml`, `tests/bootstrap/multisite.php` |
 | `cli` | planned | WP-CLI imports and activation | — |
 | `l10n` | planned | Text domain loading and translation template | — |
 | `e2e` | planned | Real browser against a running site | — |
@@ -63,7 +63,8 @@ once per scenario, each on an empty database, and reports one total.
   `tests/.cache/compat/`. The test run itself stays offline.
 - **Own plugins directory.** The suite sets `WP_PLUGIN_DIR` to a folder that
   holds the pinned third parties and this plugin, so the other suites never
-  see them.
+  see them. It also uploads to `wp-content/uploads-compat`, because some
+  third parties create folders in the uploads directory.
 - **Activation routines.** Activating through the `active_plugins` option
   runs no activation hook. A scenario lists under `activate` the plugins that
   need theirs (WP All Import creates its tables there); the bootstrap fires it
@@ -275,5 +276,12 @@ List them with `bin/test.sh all --group pinned`. Lifecycle rules: `CLAUDE.md`,
   for that reason.
 - **Another plugin may bring HTMLPurifier.** WP All Import ships it, so in
   that scenario a CDATA section does not end in the Error pinned elsewhere.
+- **On a network, settings follow the request, not the current site.** The
+  plugin reads its option on `init` only. A `multisite` test that moves to
+  another site calls `plugin_init()` after `switch_to_blog()` to act like a
+  request to that site, unless the missing reload is what it tests.
+- **Network activation is answered by a filter** on
+  `pre_site_option_active_sitewide_plugins` in the `multisite` bootstrap, like
+  `active_plugins` in the other suites.
 - **Plugin PHP files use CRLF line endings.** Keep them when editing.
 - **`bin/test.sh` targets bash 3.2** (macOS default). Avoid bash 4 features.

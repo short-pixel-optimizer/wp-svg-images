@@ -93,6 +93,11 @@ if( ! class_exists('WPSVG') ){
 	 * `role_<slug>` => int, where 0 disables SVG upload, 1 allows sanitized
 	 * upload and 2 allows unrestricted (unsanitized) upload.
 	 *
+	 * On a network the plugin has no network-wide settings: each site has its
+	 * own settings page and option. The activation hook stores its redirect
+	 * flag on the site the activation request ran on only, so after a network
+	 * activation only that site's administrators are redirected.
+	 *
 	 * @todo The plugin has no uninstall routine, so deleting it leaves the
 	 *       `wpsvg_settings` option, a pending `WPSVGActivated` option and
 	 *       the `wpsvg_notice_dismissed` user meta in the database. Add an
@@ -479,7 +484,15 @@ if( ! class_exists('WPSVG') ){
 		 * $settings.
 		 *
 		 * Hooked to `init`. Until it runs, every permission check treats all
-		 * roles as disabled.
+		 * roles as disabled. On a network every site has its own option, and a
+		 * site without one (every newly created site) allows no SVG uploads.
+		 *
+		 * @todo The settings are read once per request, so after
+		 *       switch_to_blog() the permission checks still use the settings
+		 *       of the site the request started on, and code that uploads to
+		 *       another site in the same request is judged by the wrong
+		 *       site's permissions. Read the option when it is needed, or
+		 *       reload it on the `switch_blog` action.
 		 *
 		 * @return void
 		 */
@@ -845,7 +858,10 @@ if( ! class_exists('WPSVG') ){
 		 * extensions are added when any of the current user's roles has a
 		 * non-zero permission (sanitized or unrestricted). Users with no
 		 * matching role, including logged-out requests and WP-CLI without
-		 * `--user`, get the list unchanged.
+		 * `--user`, get the list unchanged. On a network the extensions are
+		 * added after WordPress has reduced the list to the network's
+		 * "Upload file types" setting, so SVG uploads do not depend on that
+		 * setting.
 		 *
 		 * @todo A super admin browsing a subsite where they have no role gets
 		 *       no SVG permission, because only roles are checked. Decide

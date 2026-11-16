@@ -24,8 +24,10 @@ define( 'WP_PHP_BINARY', 'php' );
 define( 'WPLANG', '' );
 
 // The `compat` suite has its own plugins directory, so the third-party
-// plugins it needs never show up in the other suites.
+// plugins it needs never show up in the other suites, and its own uploads
+// directory, because some of those plugins create folders there.
 if ( 'compat' === getenv( 'WPSVG_SUITE' ) ) {
+	define( 'UPLOADS', 'wp-content/uploads-compat' );
 	define( 'WP_PLUGIN_DIR', '/opt/compat-plugins' );
 	define( 'WP_PLUGIN_URL', 'http://' . WP_TESTS_DOMAIN . '/wp-content/plugins' );
 }

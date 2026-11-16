@@ -24,8 +24,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TESTS="$ROOT/tests"
 COMPOSE=(docker compose --progress quiet -f "$TESTS/docker/compose.yml")
 
-IMPLEMENTED_SUITES="unit integration compat"
-PLANNED_SUITES="multisite cli l10n e2e"
+IMPLEMENTED_SUITES="unit integration compat multisite"
+PLANNED_SUITES="cli l10n e2e"
 
 PHP_VERSION="8.3"
 WP_REQUEST="latest"
