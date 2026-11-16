@@ -106,9 +106,9 @@ if( ! class_exists('WPSVG') ){
 			if( ! get_user_meta( get_current_user_id(), 'wpsvg_notice_dismissed' ) ){
 				if( function_exists('get_current_screen') && isset( get_current_screen()->id ) && in_array( get_current_screen()->id, array( 'plugins', 'plugin-install', 'upload', 'attachment' ) ) ){ ?>
 					<div class="wpsvg-notice notice notice-success is-dismissible">
-						<p><?php printf( esc_html__( 'Hey, WP SVG images has some new settings! Activate SVG sanitization and manage permissions by going to the new %s', 'wpsvg' ), '<a href="' . admin_url('options-general.php?page=wp-svg-images.php') . '">' . esc_html__( 'Settings page', 'wpsvg' ) . '</a>' ) ?></p>
-						<p><small style="opacity:.9"><?php printf( esc_html__( 'WP SVG images in now a part of the %s family.', 'wpsvg' ), '<a href="https://shortpixel.com/api-tools" target="_blank">ShortPixel</a>' ) ?></small></p>
-						<p><a href="<?php echo admin_url('options-general.php?page=wp-svg-images.php') ?>" class="button button-primary"><?php esc_html_e( 'Go to Settings', 'wpsvg' ) ?></a></p>
+						<p><?php printf( /* translators: %s: link to the plugin settings page, with the text "Settings page". */ esc_html__( 'Hey, WP SVG Images has some new settings! Activate SVG sanitization and manage permissions by going to the new %s.', 'wpsvg' ), '<a href="' . admin_url('options-general.php?page=wp-svg-images.php') . '">' . /* translators: link text that completes the sentence "...by going to the new %s." */ esc_html__( 'Settings page', 'wpsvg' ) . '</a>' ) ?></p>
+						<p><small style="opacity:.9"><?php printf( /* translators: %s: link to the ShortPixel website, with the text "ShortPixel". */ esc_html__( 'WP SVG Images is now a part of the %s family.', 'wpsvg' ), '<a href="https://shortpixel.com/api-tools" target="_blank">ShortPixel</a>' ) ?></small></p>
+						<p><a href="<?php echo admin_url('options-general.php?page=wp-svg-images.php') ?>" class="button button-primary"><?php /* translators: button label. */ esc_html_e( 'Go to Settings', 'wpsvg' ) ?></a></p>
 					</div>
 					<script>
 					jQuery(document).ready(function($){
@@ -126,7 +126,7 @@ if( ! class_exists('WPSVG') ){
 			// Security:  form data can be faked, including the filetype. Check tmpfile.
 			if ( ! isset($file['tmp_name']) || ! is_string($file['tmp_name']))
 			{
-				$file['error'] = __( 'Temp file is not be set!', 'wpsvg' );
+				$file['error'] = __( 'Temp file is not set!', 'wpsvg' );
 				return $file; 
 			}
 
@@ -150,7 +150,7 @@ if( ! class_exists('WPSVG') ){
 				}
 
 				if( ! $unrestricted && ! $this->sanitize( $file['tmp_name'] ) ){
-					$file['error'] = __( 'This SVG can not be sanitized!', 'wpsvg' );
+					$file['error'] = __( 'This SVG cannot be sanitized!', 'wpsvg' );
 				}
 			}
 			return $file;
@@ -297,9 +297,9 @@ if( ! class_exists('WPSVG') ){
 				<div class="postbox" style="margin-top:10px">
 					<div class="inside" style="padding-bottom:2px">
 						<h3><?php esc_html_e( 'Security notice', 'wpsvg' ) ?></h3>
-						<p><?php printf( esc_html__( 'Every SVG image is an XML file, which can contain %1$smalicious code%2$s, that can lead to %1$sXSS or Injection attacks%2$s.%3$sBelow you can decide which user roles (with upload capability) will be able to upload SVG images and also if their uploads will be sanitized.', 'wpsvg' ), '<strong>', '</strong>', '<br>' ) ?></p>
-						<p><?php printf( esc_html__( 'Sometimes you may need to upload some special SVG that includes your JavaScript code or other elements that are normally removed during sanitization - in that case, you can temporarily %1$senable unrestricted SVG upload%2$s if you are sure about your SVG code. Otherwise, it is recommended to use only the %1$senable sanitized SVG upload%2$s option.','wpsvg' ), '<code>', '</code>' ) ?> <a href="https://shortpixel.com/knowledge-base/article/524-about-sanitizing-svgs" target="_blank"><span class="dashicons dashicons-editor-help" style="text-decoration:none"></span><?php esc_html_e( 'Read more', 'wpsvg' ) ?></a></p>
-						<p class="notice notice-large notice-warning"><?php printf( esc_html__( 'You should %1$senable unrestricted SVG upload%2$s permanently only if you are absolutely sure that all users within this user role are responsible and experienced enough to detect malicious SVG code by themselves.', 'wpsvg' ), '<code>', '</code>' ) ?></p>
+						<p><?php printf( /* translators: %1$s: opening <strong> tag, %2$s: closing </strong> tag, %3$s: line break. */ esc_html__( 'Every SVG image is an XML file, which can contain %1$smalicious code%2$s, that can lead to %1$sXSS or injection attacks%2$s.%3$sBelow you can decide which user roles (with upload capability) will be able to upload SVG images and also if their uploads will be sanitized.', 'wpsvg' ), '<strong>', '</strong>', '<br>' ) ?></p>
+						<p><?php printf( /* translators: %1$s: opening <code> tag, %2$s: closing </code> tag. The text between them is an option name and must match its translation. */ esc_html__( 'Sometimes you may need to upload some special SVG that includes your JavaScript code or other elements that are normally removed during sanitization - in that case, you can temporarily %1$senable unrestricted SVG upload%2$s if you are sure about your SVG code. Otherwise, it is recommended to use only the %1$senable sanitized SVG upload%2$s option.','wpsvg' ), '<code>', '</code>' ) ?> <a href="https://shortpixel.com/knowledge-base/article/524-about-sanitizing-svgs" target="_blank"><span class="dashicons dashicons-editor-help" style="text-decoration:none"></span><?php /* translators: link to an article about SVG sanitization. */ esc_html_e( 'Read more', 'wpsvg' ) ?></a></p>
+						<p class="notice notice-large notice-warning"><?php printf( /* translators: %1$s: opening <code> tag, %2$s: closing </code> tag. The text between them is an option name and must match its translation. */ esc_html__( 'You should %1$senable unrestricted SVG upload%2$s permanently only if you are absolutely sure that all users within this user role are responsible and experienced enough to detect malicious SVG code by themselves.', 'wpsvg' ), '<code>', '</code>' ) ?></p>
 					</div>
 				</div>
 
