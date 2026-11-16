@@ -199,9 +199,18 @@ List them with `bin/test.sh all --group pinned`. Lifecycle rules: `CLAUDE.md`,
 - **`wp_handle_upload()` only accepts real HTTP uploads.** It checks
   `is_uploaded_file()`, which is always false in PHPUnit. Overriding `action`
   avoids the check but renames the prefilter hook to `{action}_prefilter`, so
-  the plugin's `wp_handle_upload_prefilter` callback no longer runs. Tests of
-  the upload gate apply `wp_handle_upload_prefilter` explicitly, call
-  `wp_handle_sideload()` on purpose (it fires `wp_handle_sideload_prefilter`),
-  or belong in the `e2e` suite.
+  the plugin's `wp_handle_upload_prefilter` callback no longer runs. The REST
+  API does the same in tests (`wp_handle_mock_upload`). Use
+  `WPSVGIntegrationTestCase::media_upload()` or
+  `forward_mock_uploads_to_the_upload_prefilter()`, which pass the mock action
+  on to the real hook; real HTTP uploads belong in the `e2e` suite.
+- **Uploads persist between runs.** The WordPress copy is cached on the host,
+  so the base test case deletes the files a test added to the uploads folder.
+  A test that bypasses it leaves files that rename later uploads
+  (`image-1.svg`).
+- **PHP warnings depend on earlier tests.** The sanitizer switches libxml's
+  internal error handling on and never off, which silences later
+  `simplexml_load_file()` warnings; the base test case resets it after each
+  test. Wrap calls that may warn in `with_warnings_captured()`.
 - **Plugin PHP files use CRLF line endings.** Keep them when editing.
 - **`bin/test.sh` targets bash 3.2** (macOS default). Avoid bash 4 features.

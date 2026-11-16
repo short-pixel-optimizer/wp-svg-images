@@ -572,7 +572,12 @@ if( ! class_exists('WPSVG') ){
 		 * to an `image/svg+xml` attachment. Dimensions come from
 		 * svg_dimensions() and are inserted into every `<img ` in the block.
 		 * When the dimensions cannot be read, `width="0" height="0"` is
-		 * inserted.
+		 * inserted. The stored attachment metadata is not used.
+		 *
+		 * @todo An SVG without readable dimensions (no size and no `viewBox`,
+		 *       and every `.svgz` file) gets `width="0" height="0"`, which
+		 *       hides the image on the page. Leave the block unchanged when
+		 *       either value is zero.
 		 *
 		 * @param string $block_content Rendered block HTML.
 		 * @param array  $block         Parsed block (`blockName`, `attrs`, ...).
@@ -659,6 +664,12 @@ if( ! class_exists('WPSVG') ){
 		 *
 		 * @todo The extension check is case-sensitive, so `logo.SVG` is not
 		 *       recognised. Compare against strtolower( $filename ).
+		 * @todo An image of another type named `logo.svg` (for example a PNG)
+		 *       keeps the `proper_filename` WordPress proposed, so it is
+		 *       stored as `logo.png` with the type `image/svg+xml` and zero
+		 *       dimensions. Leave the detected data unchanged when WordPress
+		 *       proposes another file name, or clear `proper_filename`
+		 *       together with forcing the type.
 		 *
 		 * @param array  $filetype_ext_data `ext`, `type` and `proper_filename`.
 		 * @param string $file              Full path to the file (unused).
@@ -797,8 +808,11 @@ if( ! class_exists('WPSVG') ){
 		/**
 		 * Gives SVG attachments a `full` size entry for the Media Library.
 		 *
-		 * Hooked to `wp_prepare_attachment_for_js`. Applies only when the MIME
-		 * type is `image/svg+xml` and `sizes` is empty. Dimensions are read from
+		 * Hooked to `wp_prepare_attachment_for_js` by add_svg_support(), so
+		 * only in admin requests. Applies only when the MIME type is
+		 * `image/svg+xml` and `sizes` is empty; WordPress already builds the
+		 * `full` size from the width and height in the attachment metadata, so
+		 * this covers attachments without metadata. Dimensions are read from
 		 * the attached file, or from the attachment URL when the file does not
 		 * exist locally (offloaded media), which makes a remote request
 		 * through libxml. Orientation is `landscape` when width > height and

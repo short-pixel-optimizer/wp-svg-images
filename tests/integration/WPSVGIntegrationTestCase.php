@@ -38,6 +38,8 @@ abstract class WPSVGIntegrationTestCase extends WP_UnitTestCase {
 			}
 		}
 		$this->temporary_files = array();
+		unset( $_FILES['upload'] );
+		$this->remove_added_uploads();
 
 		// The sanitizer leaves libxml's internal error handling switched on.
 		libxml_clear_errors();
@@ -138,6 +140,88 @@ abstract class WPSVGIntegrationTestCase extends WP_UnitTestCase {
 			'error'    => 0,
 			'size'     => strlen( $content ),
 		);
+	}
+
+	/**
+	 * Uploads content to the Media Library the way the media modal does.
+	 *
+	 * wp_handle_upload() refuses files that PHP did not receive over HTTP
+	 * unless its `action` is overridden, and the override also renames the
+	 * `wp_handle_upload_prefilter` hook. The mock action is therefore
+	 * forwarded to the real hook, so the plugin runs as in a real request.
+	 *
+	 * @param string $content File content.
+	 * @param string $name    Client file name.
+	 * @return int|WP_Error Attachment ID.
+	 */
+	protected function media_upload( $content, $name = 'image.svg' ) {
+		$this->forward_mock_uploads_to_the_upload_prefilter();
+		$_FILES['upload'] = $this->uploaded_file( $content, $name );
+
+		return media_handle_upload(
+			'upload',
+			0,
+			array(),
+			array(
+				'action'    => 'wp_handle_mock_upload',
+				'test_form' => false,
+			)
+		);
+	}
+
+	/**
+	 * Makes uploads handled under the `wp_handle_mock_upload` action (this
+	 * helper and the REST API when it runs in tests) fire
+	 * `wp_handle_upload_prefilter`, which real uploads fire.
+	 */
+	protected function forward_mock_uploads_to_the_upload_prefilter() {
+		if ( has_filter( 'wp_handle_mock_upload_prefilter', array( $this, 'apply_the_upload_prefilter' ) ) ) {
+			return;
+		}
+		add_filter( 'wp_handle_mock_upload_prefilter', array( $this, 'apply_the_upload_prefilter' ) );
+	}
+
+	/**
+	 * @param array $file One entry of `$_FILES`.
+	 * @return array
+	 */
+	public function apply_the_upload_prefilter( $file ) {
+		return apply_filters( 'wp_handle_upload_prefilter', $file );
+	}
+
+	/**
+	 * Runs a callback and collects the PHP warnings it raises instead of
+	 * letting PHPUnit turn the first one into an error.
+	 *
+	 * @param callable $callback
+	 * @return array{0: mixed, 1: string[]} The callback's result and the
+	 *                                      warning messages.
+	 */
+	protected function with_warnings_captured( callable $callback ) {
+		$warnings = array();
+		set_error_handler(
+			static function ( $number, $message ) use ( &$warnings ) {
+				$warnings[] = $message;
+
+				return true;
+			},
+			E_WARNING
+		);
+		try {
+			$result = $callback();
+		} finally {
+			restore_error_handler();
+		}
+
+		return array( $result, $warnings );
+	}
+
+	/**
+	 * @param int $attachment_id
+	 * @return string Content of the attachment's stored file.
+	 */
+	protected function stored_content( $attachment_id ) {
+		return file_get_contents( get_attached_file( $attachment_id ) );
 	}
 
 	/**
