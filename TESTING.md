@@ -42,8 +42,8 @@ planned suite without tests exits with code 2 instead of running nothing.
 | `integration` | implemented | Real WordPress, database and uploads directory; the plugin is active through `active_plugins` | `tests/phpunit/integration.xml`, `tests/bootstrap/integration.php` |
 | `compat` | implemented | The plugin next to real third-party plugins and libraries, one run per scenario | `tests/phpunit/compat.xml`, `tests/bootstrap/compat.php`, `tests/compat/scenarios.php` |
 | `multisite` | implemented | WordPress installed as a network, the plugin network-activated | `tests/phpunit/multisite.xml`, `tests/bootstrap/multisite.php` |
-| `cli` | planned | WP-CLI imports and activation | — |
-| `l10n` | planned | Text domain loading and translation template | — |
+| `cli` | implemented | WP-CLI commands against a freshly installed site: activation, imports with and without `--user`, removal | `tests/phpunit/cli.xml`, `tests/bootstrap/cli.php`, `tests/bootstrap/wp-cli-config.php` |
+| `l10n` | implemented | Text domain loading with a generated translation; `languages/wpsvg.pot` against the sources | `tests/phpunit/l10n.xml`, bootstrap of `integration` |
 | `e2e` | planned | Real browser against a running site | — |
 
 ### The `compat` suite
@@ -86,6 +86,35 @@ once per scenario, each on an empty database, and reports one total.
 | `beaver-builder` | Beaver Builder Lite, then this plugin | `tests/compat/BeaverBuilder/` |
 | `shortpixel` | ShortPixel Image Optimizer (activation routine run), then this plugin | `tests/compat/ShortPixel/` |
 | `gutenberg` | Gutenberg plugin, then this plugin | `tests/compat/Gutenberg/` |
+
+### The `cli` suite
+
+PHPUnit loads no WordPress here. Every test gets a freshly installed site and
+starts each `wp` command as its own process through `CliTestCase::wp()`;
+assertions look at exit code, output, and the files and rows the command left.
+
+- **WP-CLI is pinned** by version and checksum in
+  `tests/docker/php.Dockerfile`.
+- **The site's `wp-config.php`** is `tests/bootstrap/wp-cli-config.php`, handed
+  to WP-CLI through `WP_CONFIG_PATH`, so the cached WordPress copy stays
+  without one. The site uses the database `wpsvg_cli` and uploads to
+  `wp-content/uploads-cli`.
+- **Imports** run `tests/cli/scripts/import-media.php` with `wp eval-file`
+  instead of `wp media import`, which refuses to start without GD or Imagick.
+  The script does what that command does with a local file.
+- **WP-CLI's own deprecation notices are ignored.** The pinned release prints
+  them on the newest PHP version; `CliTestCase::wp()` drops the lines that
+  name WP-CLI's phar from both output streams and keeps everything else.
+- **Slow by nature:** each test installs WordPress and starts several PHP
+  processes; the suite takes about half a minute.
+
+### The `l10n` suite
+
+- **`TemplateTest`** compares the translatable strings in the PHP sources with
+  `languages/wpsvg.pot`. `tests/l10n/TranslatableStrings.php` extracts both
+  sides with PHP's tokenizer; add new source files to `TemplateTest::SOURCES`.
+- **`TextDomainTest`** switches the site to the locale `xx_XX` and answers the
+  translation file WordPress asks for with one generated during the test.
 
 ### One class, one test, one group
 
@@ -283,5 +312,14 @@ List them with `bin/test.sh all --group pinned`. Lifecycle rules: `CLAUDE.md`,
 - **Network activation is answered by a filter** on
   `pre_site_option_active_sitewide_plugins` in the `multisite` bootstrap, like
   `active_plugins` in the other suites.
+- **The test image has no `mysql` client and no GD.** `wp db ...` commands
+  and `wp media import` do not work in it; see the `cli` suite above.
+- **`wp plugin list` checks for updates** and prints a warning offline. Use
+  `wp plugin get <name> --field=...`.
+- **WordPress remembers where a translation was loaded from.** A test that
+  loads a translation file from a temporary folder replaces
+  `$wp_textdomain_registry` afterwards, or later tests look in that folder.
+- **A generated translation file needs the `.mo` extension**; WordPress picks
+  the reader by it.
 - **Plugin PHP files use CRLF line endings.** Keep them when editing.
 - **`bin/test.sh` targets bash 3.2** (macOS default). Avoid bash 4 features.

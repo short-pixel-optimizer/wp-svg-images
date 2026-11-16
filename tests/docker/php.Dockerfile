@@ -9,7 +9,12 @@ FROM php:${PHP_VERSION}-cli
 
 RUN docker-php-ext-install mysqli pdo_mysql
 
-ADD --chmod=755 https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar /usr/local/bin/wp
+# WP-CLI at a fixed release, verified by its published checksum, so a new
+# WP-CLI version cannot change the results of the `cli` suite unnoticed. Bump
+# the version and the checksum together.
+ADD --chmod=755 \
+	--checksum=sha256:ce34ddd838f7351d6759068d09793f26755463b4a4610a5a5c0a97b68220d85c \
+	https://github.com/wp-cli/wp-cli/releases/download/v2.12.0/wp-cli-2.12.0.phar /usr/local/bin/wp
 
 # Uploaded test files are sniffed with fileinfo and parsed with libxml; fail the
 # build early if the image lacks anything the plugin needs at runtime.

@@ -436,7 +436,16 @@ if( ! class_exists('WPSVG') ){
 		/**
 		 * Loads the `wpsvg` text domain from the plugin's `languages` folder.
 		 *
-		 * Hooked to `plugins_loaded`.
+		 * Hooked to `plugins_loaded`. WordPress looks for
+		 * `languages/wpsvg-<locale>.mo`; the plugin ships the template
+		 * `languages/wpsvg.pot` only, so translations come from files a site
+		 * owner adds there or from a language pack.
+		 *
+		 * @todo languages/wpsvg.pot is out of date. The plugin name entry reads
+		 *       "WP SVG images" while the `Plugin Name` header is "WP SVG
+		 *       Images", so a translated name is never used, and the upload
+		 *       error "Temp file is not be set!" has no entry. Regenerate the
+		 *       template from the current sources.
 		 *
 		 * @return void
 		 */
