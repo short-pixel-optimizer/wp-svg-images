@@ -110,16 +110,19 @@ class UploadSanitizeTest extends WPSVGIntegrationTestCase {
 	}
 
 	/**
+	 * A file named `.svg` is sanitized whatever its content, so content that
+	 * is not XML is refused.
+	 *
 	 * @dataProvider provide_content_that_is_not_svg
 	 */
-	public function test_other_content_is_left_untouched_even_when_named_svg( $content ) {
+	public function test_other_content_named_svg_is_refused_and_kept_as_it_is( $content ) {
 		$this->set_permissions( array( 'author' => 1 ) );
 		$this->log_in_as( 'author' );
 		$file = $this->uploaded_file( $content, 'image.svg', 'image/svg+xml' );
 
 		$result = $this->prefilter( $file );
 
-		$this->assertSame( 0, $result['error'] );
+		$this->assertSame( 'This SVG cannot be sanitized!', $result['error'] );
 		$this->assertSame( $content, file_get_contents( $file['tmp_name'] ) );
 	}
 
@@ -127,8 +130,62 @@ class UploadSanitizeTest extends WPSVGIntegrationTestCase {
 		return array(
 			'png image'  => array( base64_decode( self::PNG_BASE64 ) ),
 			'plain text' => array( 'just text' ),
-			'empty file' => array( '' ),
 		);
+	}
+
+	public function test_empty_file_named_svg_is_accepted_and_stays_empty() {
+		$this->set_permissions( array( 'author' => 1 ) );
+		$this->log_in_as( 'author' );
+		$file = $this->uploaded_file( '', 'image.svg', 'image/svg+xml' );
+
+		$result = $this->prefilter( $file );
+
+		$this->assertSame( 0, $result['error'] );
+		$this->assertSame( '', file_get_contents( $file['tmp_name'] ) );
+	}
+
+	/**
+	 * @dataProvider provide_svg_names_in_any_case
+	 */
+	public function test_svg_content_not_detected_as_svg_is_sanitized_by_its_file_name( $name ) {
+		$this->set_permissions( array( 'author' => 1 ) );
+		$this->log_in_as( 'author' );
+		$file = $this->uploaded_file( "\n" . $this->svg( '<script>alert(1)</script><rect/>' ), $name );
+
+		$this->assertSame( 0, $this->prefilter( $file )['error'] );
+		$this->assertSame( $this->svg( '<rect></rect>' ), file_get_contents( $file['tmp_name'] ) );
+	}
+
+	public function provide_svg_names_in_any_case() {
+		return array(
+			'svg'                     => array( 'image.svg' ),
+			'svg in upper case'       => array( 'IMAGE.SVG' ),
+			'svgz with plain content' => array( 'image.svgz' ),
+		);
+	}
+
+	/**
+	 * An XML declaration that is not at the very start is not well-formed
+	 * XML.
+	 */
+	public function test_svg_with_a_line_break_before_its_declaration_is_refused() {
+		$this->set_permissions( array( 'author' => 1 ) );
+		$this->log_in_as( 'author' );
+		$content = "\n" . self::DIRTY_SVG;
+		$file    = $this->uploaded_file( $content );
+
+		$this->assertSame( 'This SVG cannot be sanitized!', $this->prefilter( $file )['error'] );
+		$this->assertSame( $content, file_get_contents( $file['tmp_name'] ) );
+	}
+
+	public function test_content_not_detected_as_svg_is_left_untouched_when_not_named_svg() {
+		$this->set_permissions( array( 'author' => 1 ) );
+		$this->log_in_as( 'author' );
+		$content = "\n" . self::DIRTY_SVG;
+		$file    = $this->uploaded_file( $content, 'notes.txt', 'text/plain' );
+
+		$this->assertSame( 0, $this->prefilter( $file )['error'] );
+		$this->assertSame( $content, file_get_contents( $file['tmp_name'] ) );
 	}
 
 	/* Refused uploads. */
@@ -141,7 +198,7 @@ class UploadSanitizeTest extends WPSVGIntegrationTestCase {
 
 		$result = $this->prefilter( $file );
 
-		$this->assertSame( 'This SVG can not be sanitized!', $result['error'] );
+		$this->assertSame( 'This SVG cannot be sanitized!', $result['error'] );
 		$this->assertSame( $content, file_get_contents( $file['tmp_name'] ) );
 	}
 
@@ -164,7 +221,7 @@ class UploadSanitizeTest extends WPSVGIntegrationTestCase {
 
 		$result = $this->prefilter( $file );
 
-		$this->assertSame( 'Temp file is not be set!', $result['error'] );
+		$this->assertSame( 'Temp file is not set!', $result['error'] );
 	}
 
 	public function provide_entries_without_a_usable_temporary_file() {
@@ -175,23 +232,13 @@ class UploadSanitizeTest extends WPSVGIntegrationTestCase {
 		);
 	}
 
-	/* Pinned defects. */
-
 	/**
-	 * Pins a defect described in the wp_handle_upload_prefilter() docblock:
-	 * only content that PHP's file-type detection reports as SVG is
-	 * sanitized. A few leading characters are enough to make an SVG, or an
-	 * XHTML page, be reported as HTML or XML: the script stays in the file,
-	 * while wp_check_filetype_and_ext() still accepts the `.svg` name (see
-	 * UploadPermissionTest).
+	 * A few leading characters are enough to make PHP's file-type detection
+	 * report an SVG as HTML or XML; the file name still makes it sanitized.
 	 *
-	 * Fixed when the script is gone from the file or the upload is refused;
-	 * this test then fails and becomes a regression test for that.
-	 *
-	 * @group pinned
 	 * @dataProvider provide_scripted_content_not_detected_as_svg
 	 */
-	public function test_script_survives_when_content_is_not_detected_as_svg_pinned_for_deferred_fix( $content ) {
+	public function test_script_is_removed_when_content_is_not_detected_as_svg( $content ) {
 		$this->set_permissions( array( 'author' => 1 ) );
 		$this->log_in_as( 'author' );
 		$file = $this->uploaded_file( $content );
@@ -199,56 +246,47 @@ class UploadSanitizeTest extends WPSVGIntegrationTestCase {
 		$result = $this->prefilter( $file );
 
 		$this->assertSame( 0, $result['error'] );
-		$this->assertSame( $content, file_get_contents( $file['tmp_name'] ) );
-		$this->assertStringContainsString( '<script>alert(1)</script>', $content );
+		$this->assertSame( '<svg ' . self::SVG_NS . '></svg>', file_get_contents( $file['tmp_name'] ) );
 	}
 
 	public function provide_scripted_content_not_detected_as_svg() {
-		$svg = $this->svg_with_script();
+		$svg = '<svg ' . self::SVG_NS . '><script>alert(1)</script></svg>';
 
 		return array(
-			'svg after a line break'       => array( "\n" . $svg ),
-			'svg after spaces'             => array( '   ' . $svg ),
-			'svg after a comment'          => array( "<!-- note -->\n" . $svg ),
-			'svg after a long comment'     => array( "<?xml version=\"1.0\"?>\n<!-- " . str_repeat( 'x', 5000 ) . " -->\n" . $svg ),
-			'xhtml page'                   => array( '<html xmlns="http://www.w3.org/1999/xhtml"><head><script>alert(1)</script></head></html>' ),
-			'xhtml page with declaration'  => array( '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><script>alert(1)</script></html>' ),
+			'svg after a line break'   => array( "\n" . $svg ),
+			'svg after spaces'         => array( '   ' . $svg ),
+			'svg after a comment'      => array( "<!-- note -->\n" . $svg ),
+			'svg after a long comment' => array( "<?xml version=\"1.0\"?>\n<!-- " . str_repeat( 'x', 5000 ) . " -->\n" . $svg ),
 		);
 	}
 
-	/**
-	 * @return string
-	 */
-	private function svg_with_script() {
-		return '<svg ' . self::SVG_NS . '><script>alert(1)</script></svg>';
-	}
-
-	/**
-	 * Pins a defect described in the wp_handle_upload_prefilter() docblock:
-	 * gzipped content is reported as `application/gzip`, so an `.svgz`
-	 * upload is never sanitized although sanitize() can handle gzip.
-	 *
-	 * Fixed when the gzipped file is sanitized; this test then fails and
-	 * becomes a regression test for that.
-	 *
-	 * @group pinned
-	 */
-	public function test_gzipped_svg_is_not_sanitized_pinned_for_deferred_fix() {
+	public function test_gzipped_svg_is_sanitized_and_gzipped_again() {
 		$this->set_permissions( array( 'author' => 1 ) );
 		$this->log_in_as( 'author' );
-		$content = gzencode( self::DIRTY_SVG );
-		$file    = $this->uploaded_file( $content, 'image.svgz' );
+		$file = $this->uploaded_file( gzencode( self::DIRTY_SVG ), 'image.svgz' );
 
 		$result = $this->prefilter( $file );
 
 		$this->assertSame( 0, $result['error'] );
-		$this->assertSame( $content, file_get_contents( $file['tmp_name'] ) );
+		$this->assertSame( self::SANITIZED_SVG, gzdecode( file_get_contents( $file['tmp_name'] ) ) );
 	}
+
+	public function test_cdata_section_is_stored_as_text() {
+		$this->set_permissions( array( 'author' => 1 ) );
+		$this->log_in_as( 'author' );
+		$file = $this->uploaded_file( $this->svg( '<style><![CDATA[ g > .a { fill: red; } ]]></style>' ) );
+
+		$this->assertSame( 0, $this->prefilter( $file )['error'] );
+		$this->assertSame( $this->svg( '<style> g &gt; .a { fill: red; } </style>' ), file_get_contents( $file['tmp_name'] ) );
+	}
+
+	/* Pinned defects. */
 
 	/**
 	 * Pins a defect described in the wp_handle_upload_prefilter() docblock:
 	 * what the sanitizer throws is not caught, so the upload request ends
-	 * with an uncaught exception or error instead of a refused upload.
+	 * with an uncaught exception instead of a refused upload. An XHTML page
+	 * named `.svg` is sanitized because of its name and ends the same way.
 	 *
 	 * Fixed when the prefilter returns with `error` set; this test then
 	 * fails and becomes a regression test for the error message.
@@ -272,9 +310,10 @@ class UploadSanitizeTest extends WPSVGIntegrationTestCase {
 
 	public function provide_svg_that_makes_the_sanitizer_throw() {
 		return array(
-			'CDATA section in a style element' => array( $this->svg( '<style><![CDATA[ .a { fill: red; } ]]></style>' ), 'Error' ),
-			'use referencing its own parent'   => array( $this->svg( '<g id="a"><use href="#a"/></g>' ), 'LogicException' ),
-			'svg nested in another root'       => array( '<?xml version="1.0"?><x><svg ' . self::SVG_NS . '/></x>', 'LogicException' ),
+			'use referencing its own parent' => array( $this->svg( '<g id="a"><use href="#a"/></g>' ), 'LogicException' ),
+			'svg nested in another root'     => array( '<?xml version="1.0"?><x><svg ' . self::SVG_NS . '/></x>', 'LogicException' ),
+			'xhtml page'                     => array( '<html xmlns="http://www.w3.org/1999/xhtml"><head><script>alert(1)</script></head></html>', 'LogicException' ),
+			'xhtml page with declaration'    => array( '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><script>alert(1)</script></html>', 'LogicException' ),
 		);
 	}
 }

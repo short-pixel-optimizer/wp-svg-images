@@ -153,7 +153,7 @@ class UpsellTest extends WPSVGIntegrationTestCase {
 		$activate = $this->upsell_link( $html, 'upsell-activate' );
 		$this->assertNotContains( 'hidden', $install['classes'] );
 		$this->assertContains( 'hidden', $activate['classes'] );
-		$this->assertStringContainsString( 'data-alt-text="Installing ..."', $html );
+		$this->assertStringContainsString( 'data-alt-text="Installing..."', $html );
 		$this->assertStringContainsString( '<h4 class="upsell-activate-done hidden">', $html );
 		$this->assertStringContainsString( 'src="' . WP_PLUGIN_URL . '/wp-svg-images/assets/images/shortpixel-image-optimiser.svg"', $html );
 		$this->assertFileExists( WP_PLUGIN_DIR . '/wp-svg-images/assets/images/shortpixel-image-optimiser.svg' );

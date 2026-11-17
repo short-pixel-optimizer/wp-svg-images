@@ -128,41 +128,36 @@ class CliTest extends CliTestCase {
 	}
 
 	/**
-	 * Pins the defect in WPSVG::wp_handle_upload_prefilter(): imports are
-	 * sideloads, which the plugin does not filter, so a user limited to
-	 * sanitized uploads imports an SVG with its script. When fixed, the
-	 * stored file equals the sanitized SVG.
-	 *
-	 * @group pinned
+	 * Imports are sideloads, which go through the same prefilter as uploads.
 	 */
-	public function test_import_as_a_sanitized_user_is_stored_unsanitized_pinned_for_deferred_fix() {
+	public function test_import_as_a_sanitized_user_stores_a_sanitized_svg() {
 		$this->activate_plugin( array( 'author' => 1 ) );
 		$this->create_user( 'anna', 'author' );
 
 		$result = $this->import( $this->file_to_import( self::DIRTY_SVG ), 'anna' );
 
+		$this->assertSame( '', $result['stderr'] );
 		$this->assertSame( 'image/svg+xml', $this->wp_ok( 'post', 'get', (string) $result['id'], '--field=post_mime_type' ) );
-		$this->assertSame( self::DIRTY_SVG, $this->stored_content( $result['id'] ) );
-		$this->assertNotSame( self::SANITIZED_SVG, $this->stored_content( $result['id'] ) );
+		$this->assertSame( self::SANITIZED_SVG, $this->stored_content( $result['id'] ) );
 	}
 
 	/**
-	 * Pins two defects on one import: the gzipped SVG is stored unsanitized
-	 * (WPSVG::wp_handle_upload_prefilter()), and reading its dimensions
-	 * prints PHP warnings on the terminal and stores zeros
-	 * (WPSVG::svg_dimensions()). When fixed, the decoded file equals the
-	 * sanitized SVG, nothing is printed and the dimensions are 30 x 20.
+	 * Pins the defect in WPSVG::svg_dimensions(): the gzipped SVG is stored
+	 * sanitized, but its dimensions cannot be read and are stored as zeros.
+	 * Nothing is printed only because the sanitizer, which ran first, left
+	 * libxml's internal error handling switched on. When fixed, the
+	 * dimensions are 30 x 20.
 	 *
 	 * @group pinned
 	 */
-	public function test_gzipped_import_is_unsanitized_and_prints_warnings_pinned_for_deferred_fix() {
+	public function test_gzipped_import_stores_no_dimensions_pinned_for_deferred_fix() {
 		$this->activate_plugin( array( 'author' => 1 ) );
 		$this->create_user( 'anna', 'author' );
 
 		$result = $this->import( $this->file_to_import( gzencode( self::DIRTY_SVG ), 'logo.svgz' ), 'anna' );
 
-		$this->assertSame( self::DIRTY_SVG, gzdecode( $this->stored_content( $result['id'] ) ) );
-		$this->assertStringContainsString( 'Warning: simplexml_load_file()', $result['stderr'] );
+		$this->assertSame( self::SANITIZED_SVG, gzdecode( $this->stored_content( $result['id'] ) ), 'The file itself is sanitized' );
+		$this->assertSame( '', $result['stderr'] );
 		$metadata = json_decode( $this->wp_ok( 'post', 'meta', 'get', (string) $result['id'], '_wp_attachment_metadata', '--format=json' ), true );
 		$this->assertSame( 0, $metadata['width'] );
 		$this->assertSame( 0, $metadata['height'] );

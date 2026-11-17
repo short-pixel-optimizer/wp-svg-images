@@ -207,21 +207,17 @@ class WpAllImportTest extends CompatTestCase {
 	/* HTMLPurifier, which WP All Import ships. */
 
 	/**
-	 * With the current WP All Import active, HTMLPurifier can be loaded, so
-	 * an upload with a CDATA section no longer ends in the Error pinned in
-	 * BaselineTest. The older release does not ship the library.
+	 * The current WP All Import ships HTMLPurifier and the older release
+	 * does not; a CDATA section is stored as text either way.
 	 */
-	public function test_cdata_upload_works_when_wp_all_import_ships_htmlpurifier() {
+	public function test_cdata_upload_is_stored_as_text_whether_or_not_wp_all_import_ships_htmlpurifier() {
 		$this->set_permissions( array( 'author' => 1 ) );
 		$this->log_in_as( 'author' );
 		$this->assertSame( ! $this->uses_previous_versions(), class_exists( 'HTMLPurifier' ) );
-
-		if ( $this->uses_previous_versions() ) {
-			$this->expectException( Error::class );
-			$this->expectExceptionMessage( 'HTMLPurifier' );
-		} else {
+		if ( ! $this->uses_previous_versions() ) {
 			$this->assertStringStartsWith( WP_PLUGIN_DIR . '/wp-all-import/', ( new ReflectionClass( 'HTMLPurifier' ) )->getFileName() );
 		}
+
 		$id = $this->media_upload( $this->svg( self::CDATA_STYLE . '<rect/>' ) );
 
 		$this->assertIsInt( $id );

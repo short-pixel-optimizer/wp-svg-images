@@ -51,20 +51,17 @@ class BaselineTest extends CompatTestCase {
 	}
 
 	/**
-	 * Pins the defect documented on the bundled Sanitizer class: without
-	 * HTMLPurifier, an SVG with a CDATA section ends the upload in an Error.
-	 * The `htmlpurifier` scenario shows the same upload with the library.
-	 * When fixed, the upload is stored or refused without an Error.
-	 *
-	 * @group pinned
+	 * Without HTMLPurifier a CDATA section is stored as text; the
+	 * `htmlpurifier` scenario checks that the library changes nothing.
 	 */
-	public function test_cdata_upload_ends_in_an_error_without_htmlpurifier_pinned_for_deferred_fix() {
+	public function test_cdata_upload_is_stored_as_text_without_htmlpurifier() {
 		$this->set_permissions( array( 'author' => 1 ) );
 		$this->log_in_as( 'author' );
+		$this->assertFalse( class_exists( 'HTMLPurifier' ) );
 
-		$this->expectException( Error::class );
-		$this->expectExceptionMessage( 'HTMLPurifier' );
+		$id = $this->media_upload( $this->svg( self::CDATA_STYLE . '<rect/>' ) );
 
-		$this->media_upload( $this->svg( self::CDATA_STYLE . '<rect/>' ) );
+		$this->assertIsInt( $id );
+		$this->assertSame( $this->svg( '<style>rect{fill:red}</style><rect></rect>' ), $this->stored_content( $id ) );
 	}
 }

@@ -169,7 +169,7 @@ class TextDomainTest extends WPSVGIntegrationTestCase {
 	}
 
 	public function test_upload_error_is_reported_in_the_site_language() {
-		$this->use_test_locale( array( 'This SVG can not be sanitized!' => 'Not sanitizable xx' ) );
+		$this->use_test_locale( array( 'This SVG cannot be sanitized!' => 'Not sanitizable xx' ) );
 		$this->set_permissions( array( 'author' => 1 ) );
 		$this->log_in_as( 'author' );
 

@@ -67,7 +67,7 @@ test( 'install, then activate, then done', async ( { page } ) => {
 
 	await activateLink( page ).click();
 	await expect( done( page ) ).toBeVisible();
-	await expect( done( page ) ).toHaveText( 'Shortpixel activated!' );
+	await expect( done( page ) ).toHaveText( 'ShortPixel activated!' );
 	await expect( activateLink( page ) ).toBeHidden();
 
 	expect( requested ).toHaveLength( 2 );
@@ -89,7 +89,7 @@ test( 'the install link shows that it is working while the request runs', async 
 
 	await installLink( page ).click();
 
-	await expect( installLink( page ) ).toHaveText( 'Installing ...' );
+	await expect( installLink( page ) ).toHaveText( 'Installing...' );
 	await expect( activateLink( page ) ).toBeHidden();
 	release();
 	await expect( activateLink( page ) ).toBeVisible();
@@ -110,9 +110,9 @@ test( 'a failed installation still offers the activation, pinned for deferred fi
 } );
 
 // Pins the second half of the same defect: when the installer request fails
-// outright, nothing happens and the link keeps saying "Installing ..." for
+// outright, nothing happens and the link keeps saying "Installing..." for
 // good. When fixed, the box reports the failure or offers the link again.
-test( 'a failing installer request leaves the link on "Installing ...", pinned for deferred fix @pinned', async ( { page } ) => {
+test( 'a failing installer request leaves the link on "Installing...", pinned for deferred fix @pinned', async ( { page } ) => {
 	await stubInstaller( page, { install: { status: 500, body: 'Internal Server Error' } } );
 	await page.goto( SETTINGS_PAGE );
 
@@ -120,7 +120,7 @@ test( 'a failing installer request leaves the link on "Installing ...", pinned f
 	await installLink( page ).click();
 	expect( ( await answered ).status() ).toBe( 500 );
 
-	await expect( installLink( page ) ).toHaveText( 'Installing ...' );
+	await expect( installLink( page ) ).toHaveText( 'Installing...' );
 	await expect( installLink( page ) ).toBeVisible();
 	await expect( activateLink( page ) ).toBeHidden();
 } );

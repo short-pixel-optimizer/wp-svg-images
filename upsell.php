@@ -12,7 +12,7 @@
  *       when the install fails, so a failed install still shows "Activate".
  *       Check the response content before changing state.
  * @todo assets/js/spio-upsell.js has no failure handler: when a request
- *       fails, the link keeps its "Installing ..." text and nothing else
+ *       fails, the link keeps its "Installing..." text and nothing else
  *       happens. Restore the link text and show a message on failure.
  */
 ?>

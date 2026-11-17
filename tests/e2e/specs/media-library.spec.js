@@ -119,9 +119,23 @@ test.describe( 'malicious and broken SVG', () => {
 
 		expect( answer.requested, 'The server refuses it, not the browser' ).toBe( true );
 
-		await expect( uploadError( page ) ).toHaveText( 'This SVG can not be sanitized!' );
+		await expect( uploadError( page ) ).toHaveText( 'This SVG cannot be sanitized!' );
 		await expect( gridTiles( page ) ).toHaveCount( 0 );
 		expect( ( await siteState( request ) ).attachments ).toEqual( [] );
+	} );
+
+	// A line break before the markup makes PHP report the content as
+	// something else; the file name still gets it sanitized.
+	test( 'an SVG with a leading line break is sanitized', async ( { page, request } ) => {
+		await resetSite( request, { settings: { author: 1 } } );
+		await logIn( page, 'author' );
+
+		await uploadInMediaLibrary( page, svgFile( 'logo.svg', '\n' + DIRTY_SVG ) );
+
+		await expect( gridTiles( page ) ).toHaveCount( 1 );
+		const [ attachment ] = ( await siteState( request ) ).attachments;
+		expect( attachment.mime ).toBe( 'image/svg+xml' );
+		expect( attachment.content ).toBe( SANITIZED );
 	} );
 } );
 
@@ -194,23 +208,5 @@ test.describe( 'known defects', () => {
 
 		await expect( page.locator( 'body' ) ).toContainText( 'Sorry, you are not allowed to upload this file type.' );
 		expect( ( await siteState( request ) ).attachments ).toEqual( [] );
-	} );
-
-	// Pins the defect in WPSVG::wp_handle_upload_prefilter(): content that is
-	// not detected as SVG is stored unsanitized. A line break before the
-	// markup is enough; the script then runs for whoever opens the file.
-	// When fixed, the stored file has no script.
-	test( 'an SVG with a leading line break keeps its script, pinned for deferred fix @pinned', async ( { page, request } ) => {
-		await resetSite( request, { settings: { author: 1 } } );
-		await logIn( page, 'author' );
-
-		await uploadInMediaLibrary( page, svgFile( 'logo.svg', '\n' + DIRTY_SVG ) );
-
-		await expect( gridTiles( page ) ).toHaveCount( 1 );
-		const [ attachment ] = ( await siteState( request ) ).attachments;
-		expect( attachment.mime ).toBe( 'image/svg+xml' );
-		expect( attachment.content ).toContain( '<script>' );
-		await page.goto( attachment.url );
-		await expect.poll( () => page.evaluate( () => window.wpsvgRan === true ) ).toBe( true );
 	} );
 } );

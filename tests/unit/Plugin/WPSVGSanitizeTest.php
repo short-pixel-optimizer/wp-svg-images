@@ -181,45 +181,37 @@ class WPSVGSanitizeTest extends WPSVGTestCase {
 		);
 	}
 
-	/**
-	 * Pins a defect described in the sanitize() docblock: a CDATA section
-	 * makes the sanitizer look for HTMLPurifier, which the plugin does not
-	 * ship, and the resulting Error is not caught.
-	 *
-	 * Fixed when sanitize() returns for this file; this test then fails and
-	 * becomes a regression test for the written content.
-	 *
-	 * @group pinned
-	 */
-	public function test_cdata_section_ends_in_class_not_found_error_pinned_for_deferred_fix() {
-		$content = '<svg ' . self::SVG_NS . '><style><![CDATA[ .a { fill: red; } ]]></style></svg>';
-		$path    = $this->temporary_file( 'cdata.svg', $content );
-		$plugin  = $this->plugin();
+	public function test_cdata_section_is_written_as_text_escaped_once() {
+		$path = $this->temporary_file( 'cdata.svg', '<svg ' . self::SVG_NS . '><style><![CDATA[ g > .a { fill: red; } ]]></style></svg>' );
 
-		try {
-			$plugin->sanitize( $path );
-			$this->fail( 'Expected an Error' );
-		} catch ( Error $error ) {
-			$this->assertStringContainsString( 'HTMLPurifier', $error->getMessage() );
-			$this->assertSame( $content, file_get_contents( $path ) );
-		}
+		$this->assertTrue( $this->plugin()->sanitize( $path ) );
+		$this->assertSame( '<svg ' . self::SVG_NS . '><style> g &gt; .a { fill: red; } </style></svg>', file_get_contents( $path ) );
 	}
 
 	/**
-	 * Pins a defect described in the sanitize() docblock: an SVG whose root
-	 * is written with a prefix is overwritten with an XML declaration and
-	 * nothing else, and success is reported.
-	 *
-	 * Fixed when sanitize() returns false and keeps the file, or writes an
-	 * SVG; this test then fails and becomes a regression test for that.
-	 *
-	 * @group pinned
+	 * The bundled sanitizer leaves only an XML declaration for a prefixed
+	 * root (see SanitizerTest), which clean_animations() cannot parse.
 	 */
-	public function test_prefixed_root_is_replaced_by_an_xml_declaration_pinned_for_deferred_fix() {
-		$path = $this->temporary_file( 'prefixed.svg', '<s:svg xmlns:s="http://www.w3.org/2000/svg"><s:rect/></s:svg>' );
+	public function test_returns_false_and_keeps_the_file_when_the_root_is_written_with_a_prefix() {
+		$content = '<s:svg xmlns:s="http://www.w3.org/2000/svg"><s:rect/></s:svg>';
+		$path    = $this->temporary_file( 'prefixed.svg', $content );
+
+		$this->assertFalse( $this->plugin()->sanitize( $path ) );
+		$this->assertSame( $content, file_get_contents( $path ) );
+	}
+
+	public function test_unsafe_animation_is_removed_from_the_written_file() {
+		$path = $this->temporary_file( 'animated.svg', '<svg ' . self::SVG_NS . '><rect><animateTransform attributeName="href" values="0;1"/></rect></svg>' );
 
 		$this->assertTrue( $this->plugin()->sanitize( $path ) );
-		$this->assertSame( '<?xml version="1.0"?> ', file_get_contents( $path ) );
+		$this->assertSame( '<svg ' . self::SVG_NS . '><rect></rect></svg>', file_get_contents( $path ) );
+	}
+
+	public function test_gzipped_content_has_unsafe_animations_removed() {
+		$path = $this->temporary_file( 'animated.svgz', gzencode( '<svg ' . self::SVG_NS . '><rect><animateTransform attributeName="href" values="0;1"/></rect></svg>' ) );
+
+		$this->assertTrue( $this->plugin()->sanitize( $path ) );
+		$this->assertSame( '<svg ' . self::SVG_NS . '><rect></rect></svg>', gzdecode( file_get_contents( $path ) ) );
 	}
 
 	/**

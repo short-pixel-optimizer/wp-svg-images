@@ -46,8 +46,9 @@ checkpoint. The decisions from §7 are recorded there.
   reach it through `$wp_filter` or by constructing a fresh instance.
 - **Hook-driven pipeline.** All behaviour is in callbacks:
   - Upload gate: `upload_mimes` → `wp_check_filetype_and_ext` (priority 100) →
-    `wp_handle_upload_prefilter` (MIME sniff with `mime_content_type`, then
-    sanitize in place, gzip-aware).
+    `wp_handle_upload_prefilter` and `wp_handle_sideload_prefilter` (`.svg`/`.svgz`
+    file name or MIME sniff with `mime_content_type`, then sanitize in place,
+    gzip-aware, and remove unsafe animations).
   - Metadata: `wp_generate_attachment_metadata`, `wp_prepare_attachment_for_js`,
     `render_block` (`core/image` width/height), all via `svg_dimensions()`
     (SimpleXML, `width`/`height` then `viewBox`).
@@ -78,7 +79,7 @@ checkpoint. The decisions from §7 are recorded there.
 | ShortPixel Image Optimizer | `get_plugins()` / `is_plugin_active('shortpixel-image-optimiser/wp-shortpixel.php')` | Shows upsell box and enqueues upsell assets when not installed/active |
 | WordPress.org plugin installer | Upsell links to `update.php?action=install-plugin` / `plugins.php?action=activate`, fetched by `spio-upsell.js` | Network install of a third-party plugin from the admin |
 | Other plugins bundling `enshrined/svg-sanitize` (e.g. Safe SVG) | `class_exists` guard | Their sanitizer version is used instead of the bundled one |
-| HTMLPurifier | Referenced by `Sanitizer::cleanUnsafeNodes()` for CDATA sections; **not bundled** | Behaviour depends on whether any other plugin loads HTMLPurifier |
+| HTMLPurifier | Not used by the bundled sanitizer; shipped by other plugins (WP All Import, older Safe SVG) | CDATA handling must give the same output whether or not another plugin loads it |
 | Git Updater | Plugin header only | Update source; no runtime code |
 | External HTTP | `wp_prepare_attachment_for_js` falls back to `simplexml_load_file($response['url'])` when the file is missing locally | Remote fetch of the attachment URL (offloaded media / CDN setups) |
 | PHP extensions | `fileinfo` (`mime_content_type`), `libxml`/`dom`/`simplexml`, `zlib` (`gzdecode`/`gzencode`), optional `mbstring` | Hard runtime requirements, none declared |

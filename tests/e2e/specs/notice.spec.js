@@ -24,7 +24,7 @@ test( 'an administrator sees the notice on the plugin and media screens', async 
 	for ( const screen of screens ) {
 		await page.goto( screen );
 		await expect( notice( page ), screen ).toBeVisible();
-		await expect( notice( page ), screen ).toContainText( 'WP SVG images has some new settings!' );
+		await expect( notice( page ), screen ).toContainText( 'WP SVG Images has some new settings!' );
 	}
 } );
 

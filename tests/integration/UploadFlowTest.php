@@ -129,7 +129,7 @@ class UploadFlowTest extends WPSVGIntegrationTestCase {
 		$result = $this->media_upload( $this->svg( '<rect>' ) );
 
 		$this->assertWPError( $result );
-		$this->assertSame( 'This SVG can not be sanitized!', $result->get_error_message() );
+		$this->assertSame( 'This SVG cannot be sanitized!', $result->get_error_message() );
 	}
 
 	public function test_media_upload_of_a_malformed_svg_is_stored_for_an_unrestricted_role() {
@@ -198,47 +198,33 @@ class UploadFlowTest extends WPSVGIntegrationTestCase {
 	}
 
 	/**
-	 * Pins the defect in WPSVG::wp_handle_upload_prefilter(): SVG content
-	 * that PHP does not detect as SVG is accepted by its file name and stored
-	 * in the Media Library with its script. When fixed, the stored file has
-	 * no script and no handler (or the upload is refused).
+	 * SVG content that PHP does not detect as SVG is sanitized because of
+	 * its file name.
 	 *
-	 * @group pinned
 	 * @dataProvider provide_svg_content_that_is_not_detected_as_svg
 	 */
-	public function test_script_reaches_the_media_library_when_content_is_not_detected_as_svg_pinned_for_deferred_fix( $content ) {
+	public function test_media_upload_of_svg_content_not_detected_as_svg_is_sanitized( $content ) {
 		$this->set_permissions( array( 'author' => 1 ) );
 		$this->log_in_as( 'author' );
 
-		list( $id ) = $this->with_warnings_captured(
-			function () use ( $content ) {
-				return $this->media_upload( $content );
-			}
-		);
+		$id = $this->media_upload( $content );
 
 		$this->assertIsInt( $id );
 		$this->assertSame( 'image/svg+xml', get_post_mime_type( $id ) );
 		$this->assertStringEndsWith( '.svg', get_attached_file( $id ) );
-		$this->assertSame( $content, $this->stored_content( $id ) );
-		$this->assertStringContainsString( '<script>', $this->stored_content( $id ) );
+		$this->assertSame( self::SANITIZED_SVG, $this->stored_content( $id ) );
 	}
 
 	public function provide_svg_content_that_is_not_detected_as_svg() {
+		$svg = $this->svg( '<script>alert(1)</script><rect width="1" height="1"/>' );
+
 		return array(
-			'leading line break' => array( "\n" . self::DIRTY_SVG ),
-			'leading comment'    => array( '<!-- logo -->' . $this->svg( '<script>alert(1)</script>' ) ),
-			'XHTML page'         => array( '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>x</title></head><body><script>alert(1)</script></body></html>' ),
+			'leading line break' => array( "\n" . $svg ),
+			'leading comment'    => array( '<!-- logo -->' . $svg ),
 		);
 	}
 
-	/**
-	 * Pins the defect in WPSVG::wp_handle_upload_prefilter(): a gzipped SVG
-	 * is stored without being sanitized. When fixed, the decoded stored file
-	 * equals the sanitized SVG.
-	 *
-	 * @group pinned
-	 */
-	public function test_gzipped_svg_reaches_the_media_library_unsanitized_pinned_for_deferred_fix() {
+	public function test_gzipped_svg_is_stored_sanitized_and_gzipped() {
 		$this->set_permissions( array( 'author' => 1 ) );
 		$this->log_in_as( 'author' );
 
@@ -251,21 +237,34 @@ class UploadFlowTest extends WPSVGIntegrationTestCase {
 		$this->assertIsInt( $id );
 		$this->assertSame( 'image/svg+xml', get_post_mime_type( $id ) );
 		$this->assertStringEndsWith( '/logo.svgz', get_attached_file( $id ) );
-		$this->assertSame( self::DIRTY_SVG, gzdecode( $this->stored_content( $id ) ) );
+		$this->assertSame( self::SANITIZED_SVG, gzdecode( $this->stored_content( $id ) ) );
+	}
+
+	public function test_png_named_svg_is_refused_for_a_sanitized_role() {
+		$this->set_permissions( array( 'author' => 1 ) );
+		$this->log_in_as( 'author' );
+		$attachments_before = wp_count_posts( 'attachment' )->inherit;
+
+		$result = $this->media_upload( base64_decode( self::PNG_BASE64 ), 'logo.svg' );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'This SVG cannot be sanitized!', $result->get_error_message() );
+		$this->assertSame( $attachments_before, wp_count_posts( 'attachment' )->inherit );
 	}
 
 	/**
 	 * Pins the defect in WPSVG::wp_check_filetype_and_ext(): a PNG image
-	 * named `logo.svg` is stored under the name WordPress proposed for its
-	 * content, `logo.png`, but with the SVG type the plugin forced, and its
-	 * real dimensions are replaced with zeros. When fixed, the attachment's
-	 * file extension and MIME type agree (or the upload is refused).
+	 * named `logo.svg` and uploaded by an unrestricted role is stored under
+	 * the name WordPress proposed for its content, `logo.png`, but with the
+	 * SVG type the plugin forced, and its real dimensions are replaced with
+	 * zeros. When fixed, the attachment's file extension and MIME type agree
+	 * (or the upload is refused).
 	 *
 	 * @group pinned
 	 */
 	public function test_png_named_svg_is_stored_as_png_file_with_svg_type_pinned_for_deferred_fix() {
-		$this->set_permissions( array( 'author' => 1 ) );
-		$this->log_in_as( 'author' );
+		$this->set_permissions( array( 'administrator' => 2 ) );
+		$this->log_in_as( 'administrator' );
 
 		list( $id ) = $this->with_warnings_captured(
 			function () {
@@ -326,7 +325,7 @@ class UploadFlowTest extends WPSVGIntegrationTestCase {
 		$response = $this->rest_multipart_upload( $this->svg( '<rect>' ) );
 
 		$this->assertSame( 500, $response->get_status() );
-		$this->assertSame( 'This SVG can not be sanitized!', $response->get_data()['message'] );
+		$this->assertSame( 'This SVG cannot be sanitized!', $response->get_data()['message'] );
 	}
 
 	/**
@@ -352,15 +351,10 @@ class UploadFlowTest extends WPSVGIntegrationTestCase {
 	}
 
 	/**
-	 * Pins the defect in WPSVG::wp_handle_upload_prefilter(): a REST upload
-	 * sent as raw request body is handled by wp_handle_sideload(), which the
-	 * plugin does not filter, so a role limited to sanitized uploads stores
-	 * the SVG with its script. When fixed, the stored file equals the
-	 * sanitized SVG.
-	 *
-	 * @group pinned
+	 * A REST upload sent as raw request body is handled by
+	 * wp_handle_sideload().
 	 */
-	public function test_rest_raw_body_upload_is_stored_unsanitized_pinned_for_deferred_fix() {
+	public function test_rest_raw_body_upload_from_a_sanitized_role_stores_a_sanitized_svg() {
 		$this->set_permissions( array( 'author' => 1 ) );
 		$this->log_in_as( 'author' );
 
@@ -370,7 +364,7 @@ class UploadFlowTest extends WPSVGIntegrationTestCase {
 		$data = $response->get_data();
 		$this->assertSame( 'image/svg+xml', $data['mime_type'] );
 		$this->assertStringEndsWith( '/raw.svg', $data['source_url'] );
-		$this->assertSame( self::DIRTY_SVG, $this->stored_content( $data['id'] ) );
+		$this->assertSame( self::SANITIZED_SVG, $this->stored_content( $data['id'] ) );
 	}
 
 	/* Sideloads. */
@@ -398,15 +392,7 @@ class UploadFlowTest extends WPSVGIntegrationTestCase {
 		$this->assertSame( 20.0, $metadata['height'] );
 	}
 
-	/**
-	 * Pins the defect in WPSVG::wp_handle_upload_prefilter(): sideloaded
-	 * files fire `wp_handle_sideload_prefilter`, which the plugin does not
-	 * hook, so they are stored unsanitized for a role limited to sanitized
-	 * uploads. When fixed, the stored file equals the sanitized SVG.
-	 *
-	 * @group pinned
-	 */
-	public function test_sideloaded_svg_is_stored_unsanitized_pinned_for_deferred_fix() {
+	public function test_sideloaded_svg_from_a_sanitized_role_is_sanitized() {
 		$this->set_permissions( array( 'author' => 1 ) );
 		$this->log_in_as( 'author' );
 
@@ -416,16 +402,14 @@ class UploadFlowTest extends WPSVGIntegrationTestCase {
 
 		$this->assertArrayNotHasKey( 'error', $result );
 		$this->assertSame( 'image/svg+xml', $result['type'] );
-		$this->assertSame( self::DIRTY_SVG, file_get_contents( $result['file'] ) );
+		$this->assertSame( self::SANITIZED_SVG, file_get_contents( $result['file'] ) );
 	}
 
 	/**
-	 * Same defect through media_handle_sideload(), which importers use to
-	 * create the attachment.
-	 *
-	 * @group pinned
+	 * media_handle_sideload() is what importers use to create the
+	 * attachment.
 	 */
-	public function test_sideloaded_attachment_is_stored_unsanitized_pinned_for_deferred_fix() {
+	public function test_sideloaded_attachment_from_a_sanitized_role_is_sanitized() {
 		$this->set_permissions( array( 'author' => 1 ) );
 		$this->log_in_as( 'author' );
 
@@ -433,7 +417,7 @@ class UploadFlowTest extends WPSVGIntegrationTestCase {
 
 		$this->assertIsInt( $id );
 		$this->assertSame( 'image/svg+xml', get_post_mime_type( $id ) );
-		$this->assertSame( self::DIRTY_SVG, $this->stored_content( $id ) );
+		$this->assertSame( self::SANITIZED_SVG, $this->stored_content( $id ) );
 	}
 
 	/**
@@ -453,13 +437,10 @@ class UploadFlowTest extends WPSVGIntegrationTestCase {
 	}
 
 	/**
-	 * Same defect when a site allows the extension through the
-	 * `image_sideload_extensions` filter: the downloaded SVG is stored
-	 * unsanitized. When fixed, the stored file equals the sanitized SVG.
-	 *
-	 * @group pinned
+	 * When a site allows the extension through the
+	 * `image_sideload_extensions` filter, the downloaded SVG is sanitized.
 	 */
-	public function test_media_sideload_image_stores_a_downloaded_svg_unsanitized_pinned_for_deferred_fix() {
+	public function test_media_sideload_image_stores_a_downloaded_svg_sanitized() {
 		$this->set_permissions( array( 'author' => 1 ) );
 		$this->log_in_as( 'author' );
 		$requested = $this->mock_download( self::DIRTY_SVG );
@@ -477,6 +458,60 @@ class UploadFlowTest extends WPSVGIntegrationTestCase {
 		$this->assertSame( array( 'http://example.org/remote.svg' ), $requested->getArrayCopy() );
 		$this->assertIsInt( $id );
 		$this->assertSame( 'image/svg+xml', get_post_mime_type( $id ) );
-		$this->assertSame( self::DIRTY_SVG, $this->stored_content( $id ) );
+		$this->assertSame( self::SANITIZED_SVG, $this->stored_content( $id ) );
+	}
+
+	/* Animations. */
+
+	public function test_media_upload_removes_an_animation_with_an_unsafe_target() {
+		$this->set_permissions( array( 'author' => 1 ) );
+		$this->log_in_as( 'author' );
+
+		$id = $this->media_upload( $this->svg( '<rect><animateTransform attributeName="href" values="0;1"/><animateTransform attributeName="transform" type="rotate" values="0;90"/></rect>' ) );
+
+		$this->assertIsInt( $id );
+		$this->assertSame(
+			$this->svg( '<rect><animateTransform attributeName="transform" type="rotate" values="0;90"></animateTransform></rect>' ),
+			$this->stored_content( $id )
+		);
+	}
+
+	/**
+	 * `set` and its `to` attribute are not on the default whitelists; a site
+	 * that adds them still gets unsafe animations removed.
+	 */
+	public function test_media_upload_removes_a_set_element_added_through_the_filters_when_it_is_unsafe() {
+		$this->set_permissions( array( 'author' => 1 ) );
+		$this->log_in_as( 'author' );
+		add_filter(
+			'WPSVG_setAllowedTags',
+			static function ( $tags ) {
+				$tags[] = 'set';
+				return $tags;
+			}
+		);
+		add_filter(
+			'WPSVG_setAllowedAttrs',
+			static function ( $attributes ) {
+				$attributes[] = 'to';
+				return $attributes;
+			}
+		);
+
+		$id = $this->media_upload( $this->svg( '<a><set attributeName="href" to="javascript:alert(1)"/><rect><set attributeName="fill" to="red"/></rect></a>' ) );
+
+		$this->assertIsInt( $id );
+		$this->assertSame( $this->svg( '<a><rect><set attributeName="fill" to="red"></set></rect></a>' ), $this->stored_content( $id ) );
+	}
+
+	public function test_media_upload_from_an_unrestricted_role_keeps_animations() {
+		$this->set_permissions( array( 'administrator' => 2 ) );
+		$this->log_in_as( 'administrator' );
+		$content = $this->svg( '<rect><animateTransform attributeName="href" values="0;1"/></rect>' );
+
+		$id = $this->media_upload( $content );
+
+		$this->assertIsInt( $id );
+		$this->assertSame( $content, $this->stored_content( $id ) );
 	}
 }

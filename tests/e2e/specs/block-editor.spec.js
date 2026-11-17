@@ -78,7 +78,7 @@ test.describe( 'image block', () => {
 
 		expect( answer.requested, 'The server refuses it, not the browser' ).toBe( true );
 		expect( answer.status ).toBe( 500 );
-		expect( await editorError( page ) ).toContain( 'This SVG can not be sanitized!' );
+		expect( await editorError( page ) ).toContain( 'This SVG cannot be sanitized!' );
 		expect( ( await blocks( page ) )[ 0 ].attributes.id ).toBeUndefined();
 		expect( ( await siteState( request ) ).attachments ).toEqual( [] );
 	} );
@@ -110,13 +110,10 @@ test.describe( 'roles without permission', () => {
 	} );
 } );
 
-test.describe( 'known defects', () => {
-	// Pins the defect in WPSVG::wp_handle_upload_prefilter(): a REST upload
-	// sent as raw request body is a sideload, which the plugin does not
-	// filter, so a role limited to sanitized uploads stores the script.
-	// The multipart upload in the same test shows the sanitized result.
-	// When fixed, both stored files are sanitized.
-	test( 'a REST upload sent as raw body is stored unsanitized, pinned for deferred fix @pinned', async ( { page, request } ) => {
+test.describe( 'REST API uploads', () => {
+	// A REST upload sent as raw request body is a sideload; it goes through
+	// the same prefilter as the multipart upload.
+	test( 'a REST upload sent as raw body is sanitized like a multipart upload', async ( { page, request } ) => {
 		await resetSite( request, { settings: { author: 1 } } );
 		await logIn( page, 'author' );
 		await openNewPost( page );
@@ -131,6 +128,6 @@ test.describe( 'known defects', () => {
 		expect( raw.status() ).toBe( 201 );
 		const stored = Object.fromEntries( ( await siteState( request ) ).attachments.map( ( attachment ) => [ attachment.file.split( '/' ).pop(), attachment.content ] ) );
 		expect( stored[ 'form.svg' ] ).toBe( SANITIZED );
-		expect( stored[ 'raw.svg' ] ).toBe( DIRTY_SVG );
+		expect( stored[ 'raw.svg' ] ).toBe( SANITIZED );
 	} );
 } );

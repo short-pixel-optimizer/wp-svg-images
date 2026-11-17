@@ -181,9 +181,9 @@ class SafeSvgTest extends CompatTestCase {
 		$this->assertSame( 'Sorry, you are not allowed to upload SVG files.', $result->get_error_message() );
 	}
 
-	/* Safe SVG covers gaps that are pinned for this plugin alone. */
+	/* Sideloads and gzipped files: both plugins sanitize them. */
 
-	public function test_sideloaded_svg_is_sanitized_by_safe_svg() {
+	public function test_sideloaded_svg_is_sanitized() {
 		$this->set_permissions( array( 'author' => 1 ) );
 		$this->log_in_as( 'author' );
 		$file = $this->uploaded_file( self::DIRTY_SVG, 'side.svg' );
@@ -191,40 +191,43 @@ class SafeSvgTest extends CompatTestCase {
 		$result = wp_handle_sideload( $file, array( 'test_form' => false ) );
 
 		$this->assertArrayNotHasKey( 'error', $result );
-		$this->assertSame( self::SAFE_SVG_OUTPUT, file_get_contents( $result['file'] ) );
+		$this->assertSame( $this->stored_for_a_sanitized_role(), file_get_contents( $result['file'] ) );
 	}
 
-	public function test_gzipped_svg_is_sanitized_by_safe_svg() {
+	public function test_gzipped_svg_is_sanitized() {
 		$this->set_permissions( array( 'author' => 1 ) );
 		$this->log_in_as( 'author' );
 
 		$id = $this->quiet_media_upload( gzencode( self::DIRTY_SVG ), 'image.svgz' );
 
 		$this->assertIsInt( $id );
-		$this->assertSame( self::SAFE_SVG_OUTPUT, gzdecode( $this->stored_content( $id ) ) );
+		$this->assertSame( $this->stored_for_a_sanitized_role(), gzdecode( $this->stored_content( $id ) ) );
 	}
 
-	public function test_svg_content_this_plugin_does_not_detect_is_refused_by_safe_svg() {
+	/**
+	 * Both plugins refuse SVG that is not well-formed, including an XML
+	 * declaration after a line break; the one that filters last sets the
+	 * message.
+	 *
+	 * @dataProvider provide_svg_that_is_not_well_formed
+	 */
+	public function test_svg_that_is_not_well_formed_is_refused_with_the_message_of_the_last_plugin( $content ) {
 		$this->set_permissions( array( 'author' => 1 ) );
 		$this->log_in_as( 'author' );
 
-		$result = $this->quiet_media_upload( "\n" . self::DIRTY_SVG );
-
-		$this->assertWPError( $result );
-		$this->assertSame( "Sorry, this file couldn't be sanitized so for security reasons wasn't uploaded", $result->get_error_message() );
-	}
-
-	public function test_malformed_svg_is_refused_by_whichever_plugin_filters_first() {
-		$this->set_permissions( array( 'author' => 1 ) );
-		$this->log_in_as( 'author' );
-
-		$result = $this->quiet_media_upload( $this->svg( '<rect>' ) );
+		$result = $this->quiet_media_upload( $content );
 
 		$this->assertWPError( $result );
 		$this->assertSame(
-			$this->safe_svg_loaded_first() ? 'This SVG can not be sanitized!' : "Sorry, this file couldn't be sanitized so for security reasons wasn't uploaded",
-			$result->get_error_message(),
-			'The plugin that filters last sets the message'
+			$this->safe_svg_loaded_first() ? 'This SVG cannot be sanitized!' : "Sorry, this file couldn't be sanitized so for security reasons wasn't uploaded",
+			$result->get_error_message()
+		);
+	}
+
+	public function provide_svg_that_is_not_well_formed() {
+		return array(
+			'unclosed element'               => array( '<svg xmlns="http://www.w3.org/2000/svg"><rect></svg>' ),
+			'declaration after a line break' => array( "\n" . self::DIRTY_SVG ),
 		);
 	}
 
@@ -232,10 +235,8 @@ class SafeSvgTest extends CompatTestCase {
 
 	/**
 	 * With the current Safe SVG's copy of the library the upload works; with
-	 * the bundled copy it ends in the Error or LogicException that the
-	 * `integration` suite pins. The older Safe SVG's copy has the `<use>`
-	 * defect as well, and handles CDATA because that release ships
-	 * HTMLPurifier.
+	 * the bundled copy it ends in the LogicException that the `integration`
+	 * suite pins. The older Safe SVG's copy has the `<use>` defect as well.
 	 *
 	 * @dataProvider provide_svg_the_bundled_sanitizer_fails_on
 	 */
@@ -258,8 +259,24 @@ class SafeSvgTest extends CompatTestCase {
 
 	public function provide_svg_the_bundled_sanitizer_fails_on() {
 		return array(
-			'CDATA section in a style element'   => array( self::CDATA_STYLE . '<rect/>', '<style>rect{fill:red}</style><rect></rect>', Error::class, true ),
 			'use element referencing its parent' => array( '<g id="a"><use href="#a"/></g>', '<g id="a"></g>', LogicException::class, false ),
+		);
+	}
+
+	/**
+	 * Every copy of the library involved keeps a CDATA section as text.
+	 */
+	public function test_cdata_upload_is_stored_as_text_with_either_copy() {
+		$this->set_permissions( array( 'author' => 1 ) );
+		$this->log_in_as( 'author' );
+		$stored = $this->svg( '<style>rect{fill:red}</style><rect></rect>' );
+
+		$id = $this->media_upload( $this->svg( self::CDATA_STYLE . '<rect/>' ) );
+
+		$this->assertIsInt( $id );
+		$this->assertSame(
+			$this->uses_previous_versions() ? $stored : '<?xml version="1.0" encoding="UTF-8"?> ' . $stored . ' ',
+			$this->stored_content( $id )
 		);
 	}
 

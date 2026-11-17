@@ -134,7 +134,8 @@ class TemplateTest extends WP_UnitTestCase {
 		$this->assertSame( self::DOMAIN, $this->plugin_header( 'Text Domain' ) );
 		$this->assertSame( '/languages', $this->plugin_header( 'Domain Path' ) );
 		$this->assertFileExists( $this->plugin_dir() . 'languages/wpsvg.pot' );
-		$this->assertStringContainsString( '"X-Domain: wpsvg"', file_get_contents( $this->plugin_dir() . 'languages/wpsvg.pot' ) );
+		// WP-CLI ends every header line with an escaped line break.
+		$this->assertMatchesRegularExpression( '/^"X-Domain: wpsvg(\\\\n)?"$/m', file_get_contents( $this->plugin_dir() . 'languages/wpsvg.pot' ) );
 	}
 
 	public function test_template_lists_no_entry_twice() {
@@ -147,34 +148,43 @@ class TemplateTest extends WP_UnitTestCase {
 		$this->assertContains( $this->plugin_header( 'Description' ), $this->template_strings() );
 	}
 
-	/**
-	 * Pins the first defect in the template documented on
-	 * WPSVG::plugins_loaded(): one string of the code has no entry, so it
-	 * cannot be translated. When fixed, the list is empty.
-	 *
-	 * @group pinned
-	 */
-	public function test_one_string_is_missing_from_the_template_pinned_for_deferred_fix() {
-		$missing = array_values( array_diff( $this->code_strings(), $this->template_strings() ) );
-
-		$this->assertSame( array( 'Temp file is not be set!' ), $missing );
+	public function test_every_string_of_the_code_is_in_the_template() {
+		$this->assertSame( array(), array_values( array_diff( $this->code_strings(), $this->template_strings() ) ) );
 	}
 
 	/**
-	 * Pins the second defect: the template's plugin name is spelled
-	 * differently from the `Plugin Name` header, so a translation of it is
-	 * never used. It is also the only entry the sources no longer contain.
-	 * When fixed, the template has the header's spelling and no unused entry.
-	 *
-	 * @group pinned
+	 * Besides the code, the template holds the plugin headers WP-CLI
+	 * extracts, spelled as in the header so their translations are used.
 	 */
-	public function test_template_spells_the_plugin_name_differently_from_the_header_pinned_for_deferred_fix() {
-		$in_use = array_merge( $this->code_strings(), array( $this->plugin_header( 'Plugin Name' ), $this->plugin_header( 'Description' ) ) );
+	public function test_every_entry_of_the_template_is_in_use() {
+		$headers = array();
+		foreach ( array( 'Plugin Name', 'Plugin URI', 'Description', 'Author', 'Author URI' ) as $header ) {
+			$headers[] = $this->plugin_header( $header );
+		}
 
-		$unused = array_values( array_diff( $this->template_strings(), $in_use ) );
+		$unused = array_values( array_diff( $this->template_strings(), array_merge( $this->code_strings(), $headers ) ) );
 
 		$this->assertSame( 'WP SVG Images', $this->plugin_header( 'Plugin Name' ) );
-		$this->assertSame( array( 'WP SVG images' ), $unused );
+		$this->assertContains( 'WP SVG Images', $this->template_strings() );
+		$this->assertSame( array(), $unused );
+	}
+
+	/**
+	 * Translators need to know what each placeholder stands for; the
+	 * comments come from `translators:` comments in the code.
+	 */
+	public function test_every_entry_with_placeholders_has_a_translators_comment() {
+		$entries = preg_split( '/\n\s*\n/', file_get_contents( $this->plugin_dir() . 'languages/wpsvg.pot' ) );
+
+		$without_comment = array();
+		foreach ( $entries as $entry ) {
+			if ( false !== strpos( $entry, '#, php-format' ) && false === strpos( $entry, '#. translators:' ) ) {
+				$without_comment[] = $entry;
+			}
+		}
+
+		$this->assertGreaterThan( 0, substr_count( implode( "\n", $entries ), '#, php-format' ) );
+		$this->assertSame( array(), $without_comment );
 	}
 
 	/* Release metadata that has to stay in step. */

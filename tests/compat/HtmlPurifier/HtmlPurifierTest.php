@@ -4,8 +4,9 @@ require_once dirname( __DIR__ ) . '/CompatTestCase.php';
 
 /**
  * The plugin on a site where HTMLPurifier is loaded, as happens when another
- * plugin ships it. The bundled sanitizer hands CDATA sections to that
- * library; without it the same uploads end in an Error (see BaselineTest).
+ * plugin ships it. The bundled sanitizer does not use that library, so
+ * CDATA sections are stored as text exactly as without it (see
+ * BaselineTest).
  */
 class HtmlPurifierTest extends CompatTestCase {
 
@@ -42,14 +43,18 @@ class HtmlPurifierTest extends CompatTestCase {
 		$this->assertSame( array(), $warnings );
 	}
 
-	public function test_markup_inside_a_cdata_section_is_removed() {
+	/**
+	 * Markup inside a CDATA section stays text: every `<` is escaped, so no
+	 * element can start in the stored file.
+	 */
+	public function test_markup_inside_a_cdata_section_is_stored_as_escaped_text() {
 		$id = $this->media_upload( $this->svg( '<style><![CDATA[</style><script>alert(1)</script><style>rect{fill:red}]]></style><rect/>' ) );
 
 		$this->assertIsInt( $id );
-		$stored = $this->stored_content( $id );
-		$this->assertStringNotContainsString( 'script', $stored );
-		$this->assertStringNotContainsString( 'alert', $stored );
-		$this->assertStringEndsWith( '<rect></rect></svg>', $stored );
+		$this->assertSame(
+			$this->svg( '<style>&lt;/style&gt;&lt;script&gt;alert(1)&lt;/script&gt;&lt;style&gt;rect{fill:red}</style><rect></rect>' ),
+			$this->stored_content( $id )
+		);
 	}
 
 	public function test_cdata_inside_a_script_element_goes_with_the_element() {
@@ -59,33 +64,24 @@ class HtmlPurifierTest extends CompatTestCase {
 	}
 
 	/**
-	 * Pins the defect in Sanitizer::cleanUnsafeNodes(): CDATA content comes
-	 * out encoded twice, which breaks style rules that use `>` and shows
-	 * entities in text. When fixed, the characters are encoded once.
-	 *
-	 * @group pinned
 	 * @dataProvider provide_cdata_with_special_characters
 	 */
-	public function test_special_characters_in_cdata_are_encoded_twice_pinned_for_deferred_fix( $markup, $stored_markup, $once_encoded ) {
+	public function test_special_characters_in_cdata_are_encoded_once( $markup, $stored_markup ) {
 		$id = $this->media_upload( $this->svg( $markup ) );
 
 		$this->assertIsInt( $id );
-		$stored = $this->stored_content( $id );
-		$this->assertSame( $this->svg( $stored_markup ), $stored );
-		$this->assertStringNotContainsString( $once_encoded, $stored );
+		$this->assertSame( $this->svg( $stored_markup ), $this->stored_content( $id ) );
 	}
 
 	public function provide_cdata_with_special_characters() {
 		return array(
 			'child selector in a style rule' => array(
 				'<style><![CDATA[g > rect{fill:red}]]></style>',
-				'<style>g &amp;gt; rect{fill:red}</style>',
-				'<style>g &gt; rect',
+				'<style>g &gt; rect{fill:red}</style>',
 			),
 			'comparison in a text element'   => array(
 				'<text><![CDATA[a < b & c]]></text>',
-				'<text>a &amp;lt; b &amp;amp; c</text>',
-				'<text>a &lt; b &amp; c',
+				'<text>a &lt; b &amp; c</text>',
 			),
 		);
 	}

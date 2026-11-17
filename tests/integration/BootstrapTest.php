@@ -55,6 +55,7 @@ class BootstrapTest extends WPSVGIntegrationTestCase {
 	public function provide_registered_hooks() {
 		$hooks = array(
 			array( 'wp_handle_upload_prefilter', 'wp_handle_upload_prefilter', 10 ),
+			array( 'wp_handle_sideload_prefilter', 'wp_handle_upload_prefilter', 10 ),
 			array( 'plugins_loaded', 'plugins_loaded', 10 ),
 			array( 'admin_menu', 'plugin_menu_link', 10 ),
 			array( 'init', 'plugin_init', 10 ),
@@ -77,14 +78,6 @@ class BootstrapTest extends WPSVGIntegrationTestCase {
 		}
 
 		return $cases;
-	}
-
-	/**
-	 * Sideloaded files (REST raw-body uploads, importers) go through this
-	 * filter, which the plugin does not use.
-	 */
-	public function test_sideload_prefilter_is_not_hooked() {
-		$this->assertFalse( has_filter( 'wp_handle_sideload_prefilter', array( $this->plugin(), 'wp_handle_upload_prefilter' ) ) );
 	}
 
 	public function test_settings_are_false_on_a_site_that_never_saved_them() {

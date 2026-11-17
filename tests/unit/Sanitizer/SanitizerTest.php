@@ -624,26 +624,28 @@ class SanitizerTest extends SanitizerTestCase {
 	/* CDATA. */
 
 	/**
-	 * Pins the defect described in the Sanitizer class docblock: a CDATA
-	 * section is handed to HTMLPurifier, which is not shipped with the
-	 * library, so sanitize() ends with an Error.
+	 * A CDATA section becomes a text node with the same content, so special
+	 * characters are escaped once and markup inside it stays text.
 	 *
-	 * Fixed when sanitize() returns a string for this document; this test
-	 * then fails and becomes a regression test for the returned content.
-	 *
-	 * @group pinned
+	 * @dataProvider provide_cdata_sections
 	 */
-	public function test_cdata_section_throws_class_not_found_error_pinned_for_deferred_fix() {
+	public function test_cdata_section_becomes_text_escaped_once( $markup, $expected ) {
 		$this->assertFalse( class_exists( 'HTMLPurifier' ), 'HTMLPurifier is not part of the test environment' );
-		$sanitizer = new Sanitizer();
 
-		try {
-			$sanitizer->sanitize( $this->svg( '<style><![CDATA[ .a { fill: red; } ]]></style>' ) );
-			$this->fail( 'Expected an Error' );
-		} catch ( Error $error ) {
-			$this->assertStringContainsString( 'HTMLPurifier', $error->getMessage() );
-			$this->assertStringContainsString( 'not found', $error->getMessage() );
-		}
+		$this->assertSame( $expected, $this->sanitize_inner( $markup ) );
+		$this->assertSame( array(), $this->issue_messages() );
+	}
+
+	public function provide_cdata_sections() {
+		return array(
+			'style rule'               => array( '<style><![CDATA[.a{fill:red}]]></style>', '<style>.a{fill:red}</style>' ),
+			'child selector'           => array( '<style><![CDATA[g > rect{fill:red}]]></style>', '<style>g &gt; rect{fill:red}</style>' ),
+			'comparison in a text'     => array( '<text><![CDATA[a < b & c]]></text>', '<text>a &lt; b &amp; c</text>' ),
+			'markup that closes style' => array(
+				'<style><![CDATA[</style><script>alert(1)</script>]]></style>',
+				'<style>&lt;/style&gt;&lt;script&gt;alert(1)&lt;/script&gt;</style>',
+			),
+		);
 	}
 
 	/* Prefixed root. */

@@ -250,10 +250,6 @@ if( ! class_exists('WPSVG') ){
 		 * `plugin-install`, `upload` and `attachment` screens. Includes an
 		 * inline script that posts the dismissal to admin-ajax.php.
 		 *
-		 * @todo The second sentence reads "WP SVG images in now a part of";
-		 *       it should say "is now". Correct it here and in
-		 *       languages/wpsvg.pot.
-		 *
 		 * @return false|void False when the user lacks `manage_options`.
 		 */
 		function admin_notices(){
@@ -279,14 +275,19 @@ if( ! class_exists('WPSVG') ){
 		}
 
 		/**
-		 * Sanitizes SVG uploads in place before WordPress moves them.
+		 * Sanitizes SVG uploads and sideloads in place before WordPress moves
+		 * them.
 		 *
-		 * Hooked to `wp_handle_upload_prefilter`, so it runs for uploads
-		 * handled by wp_handle_upload() only. The file type is sniffed from the
-		 * temporary file content with mime_content_type(); the client-supplied
-		 * type and the file name are ignored. When the content is
-		 * `image/svg+xml` or `image/svg`, the file is rewritten by sanitize()
-		 * unless one of the current user's roles is set to unrestricted (2).
+		 * Hooked to `wp_handle_upload_prefilter` and
+		 * `wp_handle_sideload_prefilter`, so it runs for files handled by
+		 * wp_handle_upload() and by wp_handle_sideload() (REST API raw-body
+		 * uploads, media_handle_sideload(), media_sideload_image(), WP-CLI
+		 * imports). A file is treated as SVG when its name ends in `.svg` or
+		 * `.svgz`, in any case, or when mime_content_type() reports its
+		 * content as `image/svg+xml` or `image/svg`; the client-supplied type
+		 * is ignored. Such a file is rewritten by sanitize() unless one of the
+		 * current user's roles is set to unrestricted (2), so content that is
+		 * not XML, such as a PNG image or plain text named `.svg`, is refused.
 		 * Upload permission itself is enforced by add_svg_mime(), not here.
 		 *
 		 * Another active SVG plugin keeps its own rules. Safe SVG, for
@@ -297,30 +298,15 @@ if( ! class_exists('WPSVG') ){
 		 * Sets `$file['error']` when `tmp_name` is missing or not a string
 		 * (for every upload, SVG or not), and when sanitization fails.
 		 *
-		 * @todo Gzipped files are sniffed as `application/gzip`, so `.svgz`
-		 *       uploads are never sanitized even though sanitize() handles
-		 *       gzip. SVG files whose content is not sniffed as SVG (for
-		 *       example a file that starts with a line break, spaces or an
-		 *       XML comment, sniffed as `text/html`, or an XHTML page) are
-		 *       not sanitized either and keep their scripts, while
-		 *       wp_check_filetype_and_ext() still accepts them as
-		 *       `image/svg+xml` by file name. Decide by the extension that
-		 *       WordPress will store (and by gzip magic bytes) rather than by
-		 *       sniffed type alone.
 		 * @todo No permission is checked here, so when another plugin allows
 		 *       the SVG type (Safe SVG does, for every user who can upload
 		 *       files), a role set to "disable SVG upload" uploads SVGs.
 		 *       Set `$file['error']` for SVG files from users without a
 		 *       non-zero permission.
-		 * @todo Uploads that go through wp_handle_sideload() (REST API raw-body
-		 *       uploads, media_sideload_image(), importers) fire
-		 *       `wp_handle_sideload_prefilter` instead and are stored
-		 *       unsanitized. Hook the same callback to that filter.
-		 * @todo Exceptions and errors thrown by the sanitizer (see sanitize())
-		 *       are not caught and abort the upload request with a fatal error
-		 *       instead of setting `$file['error']`.
-		 * @todo The error message "Temp file is not be set!" is ungrammatical
-		 *       and missing from languages/wpsvg.pot.
+		 * @todo Exceptions thrown by the sanitizer (see sanitize()), for
+		 *       example for an XHTML page named `.svg`, are not caught and
+		 *       abort the upload request with a fatal error instead of
+		 *       setting `$file['error']`.
 		 *
 		 * @param array $file Single entry of `$_FILES` (`name`, `type`,
 		 *                    `tmp_name`, `error`, `size`).
@@ -368,32 +354,26 @@ if( ! class_exists('WPSVG') ){
 		 * Gzipped content (detected by is_gzipped()) is decoded, sanitized and
 		 * re-encoded. The tag and attribute whitelists are re-read through the
 		 * `WPSVG_setAllowedTags` and `WPSVG_setAllowedAttrs` filters on every
-		 * call. Disallowed elements and attributes are removed and the file is
-		 * kept; the method fails only when the content cannot be decoded or
-		 * parsed as XML. An empty file is "sanitized" to an empty string and
-		 * reported as success. Gzip content that cannot be decoded also raises
-		 * a PHP warning from gzdecode().
+		 * call. The sanitizer output then goes through clean_animations().
+		 * Disallowed elements and attributes are removed and the file is kept;
+		 * the method fails when the content cannot be decoded or parsed as
+		 * XML, and when nothing but an XML declaration is left, as for a root
+		 * element written with a prefix (`<x:svg>`, see Sanitizer::sanitize()).
+		 * An empty file is "sanitized" to an empty string and reported as
+		 * success. Gzip content that cannot be decoded also raises a PHP
+		 * warning from gzdecode().
 		 *
-		 * @todo An SVG containing a CDATA section (for example inside
-		 *       `<style>`) ends in a fatal "Class HTMLPurifier not found" error
-		 *       because the bundled sanitizer uses HTMLPurifier, which the
-		 *       plugin does not ship. Bundle HTMLPurifier or replace the CDATA
-		 *       handling.
 		 * @todo Well-formed XML whose root element is not `<svg>`, and an SVG
 		 *       in which a `<use>` references its own parent element, make the
 		 *       sanitizer throw a LogicException, which propagates to the
 		 *       caller. Catch Throwable here and return false.
-		 * @todo An SVG whose root element is written with a prefix (`<x:svg>`)
-		 *       is overwritten with an XML declaration and nothing else, and
-		 *       reported as success. Return false when the sanitized content
-		 *       has no root element.
 		 * @todo A path that cannot be read raises a PHP warning, then an empty
 		 *       file is written to that path and success is reported. Return
 		 *       false when file_get_contents() fails.
 		 *
 		 * @param string $file Absolute path of the file to sanitize.
 		 * @return bool True when the file was rewritten, false when it could
-		 *              not be decoded or parsed.
+		 *              not be decoded or parsed or has no root element left.
 		 */
 		function sanitize( $file ){
 			$svg_code = file_get_contents( $file );
@@ -427,9 +407,46 @@ if( ! class_exists('WPSVG') ){
 			return true;
 		}
 
-		// Remove animation elements whose attributeName is not a known safe attribute: animating href
-		// (or another URL attribute) to javascript: runs script in WebKit. Done here, not in the bundled
-		// sanitizer, because another plugin may have loaded its own copy of that library.
+		/**
+		 * Removes animation elements that could turn an attribute into a
+		 * script URL.
+		 *
+		 * Animating `href` or another URL attribute to a `javascript:` URL
+		 * runs script in WebKit. Called by sanitize() on the sanitizer output;
+		 * the check lives here rather than in the bundled library because
+		 * another plugin may have loaded its own copy of that library, which
+		 * is then used instead.
+		 *
+		 * Elements are matched by local name, ignoring case and namespace:
+		 *
+		 * - `animate`, `set` and `animateColor` are removed unless their
+		 *   `attributeName` is one of a fixed list of geometry and
+		 *   presentation attributes (`x`, `width`, `d`, `fill`, `opacity`,
+		 *   `transform` and similar);
+		 * - `animateTransform` is removed unless it targets `transform`,
+		 *   `gradientTransform` or `patternTransform`;
+		 * - `animateMotion` is removed whenever it has an `attributeName`.
+		 *
+		 * `attributeName` is compared ignoring case and surrounding
+		 * whitespace; an element without it is not removed for its target.
+		 * Any of these elements is also removed when its `values`, `from`,
+		 * `to` or `by` attribute contains `javascript:`, `vbscript:` or
+		 * `data:`, ignoring case, spaces and control characters, whatever
+		 * the target.
+		 *
+		 * The default tag whitelist allows `animateColor`, `animateMotion`
+		 * and `animateTransform`; `animate` and `set` reach this method only
+		 * when a site adds them through the `WPSVG_setAllowedTags` filter.
+		 *
+		 * @param string $svg_code Sanitized SVG markup.
+		 * @return string|false The markup unchanged when it is empty, only
+		 *                      whitespace, or has nothing to remove; the
+		 *                      root element serialized again, without an
+		 *                      XML declaration and with explicit closing
+		 *                      tags, when something was removed; false when
+		 *                      it cannot be parsed as XML or has no root
+		 *                      element.
+		 */
 		function clean_animations( $svg_code ){
 			if( trim( $svg_code ) === '' ) return $svg_code;
 
@@ -497,12 +514,6 @@ if( ! class_exists('WPSVG') ){
 		 * `languages/wpsvg-<locale>.mo`; the plugin ships the template
 		 * `languages/wpsvg.pot` only, so translations come from files a site
 		 * owner adds there or from a language pack.
-		 *
-		 * @todo languages/wpsvg.pot is out of date. The plugin name entry reads
-		 *       "WP SVG images" while the `Plugin Name` header is "WP SVG
-		 *       Images", so a translated name is never used, and the upload
-		 *       error "Temp file is not be set!" has no entry. Regenerate the
-		 *       template from the current sources.
 		 *
 		 * @return void
 		 */
@@ -799,9 +810,10 @@ if( ! class_exists('WPSVG') ){
 		 * @todo The extension check is case-sensitive, so `logo.SVG` is not
 		 *       recognised. Compare against strtolower( $filename ).
 		 * @todo An image of another type named `logo.svg` (for example a PNG)
-		 *       keeps the `proper_filename` WordPress proposed, so it is
-		 *       stored as `logo.png` with the type `image/svg+xml` and zero
-		 *       dimensions. Leave the detected data unchanged when WordPress
+		 *       keeps the `proper_filename` WordPress proposed, so when an
+		 *       unrestricted role uploads it (other roles have it refused by
+		 *       wp_handle_upload_prefilter()) it is stored as `logo.png` with
+		 *       the type `image/svg+xml` and zero dimensions. Leave the detected data unchanged when WordPress
 		 *       proposes another file name, or clear `proper_filename`
 		 *       together with forcing the type.
 		 *

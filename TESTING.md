@@ -92,7 +92,7 @@ once per scenario, each on an empty database, and reports one total.
 | `baseline` | this plugin only; every third party installed but inactive (includes ShortPixel Image Optimizer inactive and the Git Updater headers) | `tests/compat/Baseline/` |
 | `safe-svg-first` | Safe SVG, then this plugin (WordPress's default order) | `tests/compat/SafeSvg/` |
 | `safe-svg-last` | this plugin, then Safe SVG | `tests/compat/SafeSvg/` |
-| `htmlpurifier` | this plugin, HTMLPurifier loaded | `tests/compat/HtmlPurifier/` |
+| `htmlpurifier` | this plugin, HTMLPurifier loaded (another plugin may bring it; CDATA output must not change) | `tests/compat/HtmlPurifier/` |
 | `wp-all-import` | WP All Import (activation routine run), then this plugin | `tests/compat/WpAllImport/` |
 | `beaver-builder` | Beaver Builder Lite, then this plugin | `tests/compat/BeaverBuilder/` |
 | `shortpixel` | ShortPixel Image Optimizer (activation routine run), then this plugin | `tests/compat/ShortPixel/` |
@@ -368,8 +368,9 @@ List them with `bin/test.sh all --group pinned`. Lifecycle rules: `CLAUDE.md`,
 - **HTMLPurifier writes a cache next to its own files** and warns when it
   cannot; the libraries and third-party plugins folders are mounted writable
   for that reason.
-- **Another plugin may bring HTMLPurifier.** WP All Import ships it, so in
-  that scenario a CDATA section does not end in the Error pinned elsewhere.
+- **Another plugin may bring HTMLPurifier.** WP All Import and older Safe
+  SVG releases ship it. The bundled sanitizer no longer uses it, so CDATA
+  output is asserted to be the same with and without it.
 - **On a network, settings follow the request, not the current site.** The
   plugin reads its option on `init` only. A `multisite` test that moves to
   another site calls `plugin_init()` after `switch_to_blog()` to act like a

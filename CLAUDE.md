@@ -66,8 +66,10 @@ Upload flow for a user whose role allows SVG:
 1. `upload_mimes` → `add_svg_mime()` adds `svg`/`svgz` (the permission gate).
 2. `wp_check_filetype_and_ext` (priority 100) → forces `image/svg+xml` for
    `.svg`/`.svgz` file names.
-3. `wp_handle_upload_prefilter` → sniffs the temp file; SVG content is
-   sanitized in place unless the role is unrestricted.
+3. `wp_handle_upload_prefilter` (and `wp_handle_sideload_prefilter` for
+   sideloads, REST raw-body uploads and WP-CLI imports) → a file named
+   `.svg`/`.svgz` or sniffed as SVG is sanitized in place, then cleaned of
+   unsafe animations, unless the role is unrestricted.
 4. `wp_generate_attachment_metadata` → stores width/height from
    `svg_dimensions()`.
 5. Display: `wp_prepare_attachment_for_js`, `render_block` (`core/image`), and

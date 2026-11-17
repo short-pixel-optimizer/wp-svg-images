@@ -16,15 +16,8 @@ use enshrined\svgSanitize\ElementReference\Resolver;
  * processing instructions, `<font>` elements that break out of foreign
  * content, and `<use>` elements that reference external resources, form
  * loops, nest too deeply or expand beyond the use threshold. Everything
- * removed is recorded in getXmlIssues().
- *
- * CDATA sections are passed through HTMLPurifier, which is not shipped with
- * this plugin.
- *
- * @todo The bundled copy does not include HTMLPurifier, so any CDATA section
- *       makes sanitize() fail with "Class HTMLPurifier not found" unless
- *       another plugin happens to load it. Bundle HTMLPurifier with the
- *       library.
+ * removed is recorded in getXmlIssues(). CDATA sections become plain text
+ * (see cleanUnsafeNodes()).
  *
  * @package enshrined\svgSanitize
  */
@@ -215,8 +208,6 @@ class Sanitizer
      * @throws \LogicException When the document's root is not a single
      *                         `<svg>` element (see XPath), and in the case
      *                         described on Resolver::processReferences().
-     * @throws \Error          When the document contains a CDATA section and
-     *                         HTMLPurifier is not loaded.
      *
      * @todo A document whose root is a prefixed `<x:svg>` passes the root
      *       check, then has its root removed because `x:svg` is not on the
@@ -716,17 +707,10 @@ class Sanitizer
     /**
      * Remove nodes that are either invalid or malformed.
      *
-     * A CDATA section is replaced with a text node holding what HTMLPurifier
-     * makes of its content read as HTML: markup that is not allowed in HTML
-     * is dropped and `<`, `>` and `&` come back as entities.
-     *
-     * @todo The purified text is HTML-encoded and then stored as a text
-     *       node, which encodes it once more on output. A `<style>` rule
-     *       such as `a > b {}` becomes `a &gt; b {}` for the browser and no
-     *       longer applies, and `a < b` in a `<text>` element is displayed as
-     *       `a &lt; b`. Suggested fix: decode the purified text before
-     *       creating the text node, or keep CDATA content as plain text
-     *       without HTMLPurifier.
+     * A CDATA section is replaced with a text node holding its content
+     * unchanged, so `<`, `>` and `&` in it are escaped once on output and
+     * markup in it stays text. Other nodes that are neither elements nor
+     * text are removed and recorded as issues.
      *
      * @param \DOMNode $currentElement The current element.
      */
