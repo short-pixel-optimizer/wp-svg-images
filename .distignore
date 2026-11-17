@@ -10,3 +10,6 @@
 /AGENTS.md
 /CLAUDE.md
 /TESTING.md
+/composer.json
+/composer.lock
+/vendor

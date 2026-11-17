@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-11-17T09:11:33+00:00\n"
+"POT-Creation-Date: 2026-11-17T12:03:13+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: wp-svg-images\n"
@@ -33,6 +33,54 @@ msgstr ""
 #. Author of the plugin
 #: wp-svg-images.php
 msgid "ShortPixel"
+msgstr ""
+
+#: build/shortpixel/promo-banner/src/PromoBanner.php:315
+msgid "ShortPixel Black Friday offer"
+msgstr ""
+
+#: build/shortpixel/promo-banner/src/PromoBanner.php:326
+msgid "25% off forever!"
+msgstr ""
+
+#: build/shortpixel/promo-banner/src/PromoBanner.php:327
+msgid "Black Friday Sale"
+msgstr ""
+
+#. translators: %s: "25% OFF" in bold.
+#: build/shortpixel/promo-banner/src/PromoBanner.php:331
+#, php-format
+msgid "%s any yearly plan for life"
+msgstr ""
+
+#. translators: %s: "25% OFF" in bold.
+#: build/shortpixel/promo-banner/src/PromoBanner.php:331
+msgid "25% OFF"
+msgstr ""
+
+#. translators: %s: "2x" in bold.
+#: build/shortpixel/promo-banner/src/PromoBanner.php:333
+#, php-format
+msgid "%s One-Time Credits"
+msgstr ""
+
+#. translators: %s: "2x" in bold.
+#: build/shortpixel/promo-banner/src/PromoBanner.php:333
+msgid "2x"
+msgstr ""
+
+#. translators: %s: the last day of the offer, in bold.
+#: build/shortpixel/promo-banner/src/PromoBanner.php:340
+#, php-format
+msgid "Offer ends %s"
+msgstr ""
+
+#: build/shortpixel/promo-banner/src/PromoBanner.php:342
+msgid "Claim Deal"
+msgstr ""
+
+#: build/shortpixel/promo-banner/src/PromoBanner.php:348
+msgid "Dismiss"
 msgstr ""
 
 #: upsell.php:28
@@ -64,89 +112,89 @@ msgid "ShortPixel activated!"
 msgstr ""
 
 #. translators: %s: link to the plugin settings page, with the text "Settings page".
-#: wp-svg-images.php:262
+#: wp-svg-images.php:334
 #, php-format
 msgid "Hey, WP SVG Images has some new settings! Activate SVG sanitization and manage permissions by going to the new %s."
 msgstr ""
 
 #. translators: link text that completes the sentence "...by going to the new %s."
-#: wp-svg-images.php:262
+#: wp-svg-images.php:334
 msgid "Settings page"
 msgstr ""
 
 #. translators: %s: link to the ShortPixel website, with the text "ShortPixel".
-#: wp-svg-images.php:263
+#: wp-svg-images.php:335
 #, php-format
 msgid "WP SVG Images is now a part of the %s family."
 msgstr ""
 
 #. translators: button label.
-#: wp-svg-images.php:264
+#: wp-svg-images.php:336
 msgid "Go to Settings"
 msgstr ""
 
-#: wp-svg-images.php:321
+#: wp-svg-images.php:393
 msgid "Temp file is not set!"
 msgstr ""
 
-#: wp-svg-images.php:345
+#: wp-svg-images.php:417
 msgid "This SVG cannot be sanitized!"
 msgstr ""
 
-#: wp-svg-images.php:541
-#: wp-svg-images.php:542
-#: wp-svg-images.php:634
+#: wp-svg-images.php:613
+#: wp-svg-images.php:614
+#: wp-svg-images.php:708
 msgid "SVG images"
 msgstr ""
 
-#: wp-svg-images.php:560
+#: wp-svg-images.php:632
 msgid "Settings"
 msgstr ""
 
-#: wp-svg-images.php:636
+#: wp-svg-images.php:712
 msgid "Settings saved."
 msgstr ""
 
-#: wp-svg-images.php:640
+#: wp-svg-images.php:716
 msgid "Security notice"
 msgstr ""
 
 #. translators: %1$s: opening <strong> tag, %2$s: closing </strong> tag, %3$s: line break.
-#: wp-svg-images.php:641
+#: wp-svg-images.php:717
 #, php-format
 msgid "Every SVG image is an XML file, which can contain %1$smalicious code%2$s, that can lead to %1$sXSS or injection attacks%2$s.%3$sBelow you can decide which user roles (with upload capability) will be able to upload SVG images and also if their uploads will be sanitized."
 msgstr ""
 
 #. translators: %1$s: opening <code> tag, %2$s: closing </code> tag. The text between them is an option name and must match its translation.
-#: wp-svg-images.php:642
+#: wp-svg-images.php:718
 #, php-format
 msgid "Sometimes you may need to upload some special SVG that includes your JavaScript code or other elements that are normally removed during sanitization - in that case, you can temporarily %1$senable unrestricted SVG upload%2$s if you are sure about your SVG code. Otherwise, it is recommended to use only the %1$senable sanitized SVG upload%2$s option."
 msgstr ""
 
 #. translators: link to an article about SVG sanitization.
-#: wp-svg-images.php:642
-#: wp-svg-images.php:686
+#: wp-svg-images.php:718
+#: wp-svg-images.php:762
 msgid "Read more"
 msgstr ""
 
 #. translators: %1$s: opening <code> tag, %2$s: closing </code> tag. The text between them is an option name and must match its translation.
-#: wp-svg-images.php:643
+#: wp-svg-images.php:719
 #, php-format
 msgid "You should %1$senable unrestricted SVG upload%2$s permanently only if you are absolutely sure that all users within this user role are responsible and experienced enough to detect malicious SVG code by themselves."
 msgstr ""
 
-#: wp-svg-images.php:655
+#: wp-svg-images.php:731
 msgid "enable sanitized SVG upload"
 msgstr ""
 
-#: wp-svg-images.php:656
+#: wp-svg-images.php:732
 msgid "enable unrestricted SVG upload"
 msgstr ""
 
-#: wp-svg-images.php:657
+#: wp-svg-images.php:733
 msgid "disable SVG upload"
 msgstr ""
 
-#: wp-svg-images.php:693
+#: wp-svg-images.php:769
 msgid "Save"
 msgstr ""

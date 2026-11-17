@@ -16,16 +16,43 @@ SVG previews in the Media Library and the image block.
 - Tested version matrix: `docs/TESTING-PLAN.md` §3.3.
 - Text domain: `wp-svg-images` (the wordpress.org slug, so language packs
   apply); template: `languages/wp-svg-images.pot`, regenerated with
-  `wp i18n make-pot`.
+  `wp i18n make-pot` (it includes the strings of the bundled promo banner in
+  `build/shortpixel/`; exclude `tests`, `svg-sanitizer`, `assets`, `bin`,
+  `docs` and `vendor`).
 
 ## Build and dependencies
 
-- No build step and no Composer manifest for the plugin. The sanitizer is
-  vendored in `svg-sanitizer/` and loaded with `require_once`.
+- The plugin's own code has no build step. The sanitizer is vendored in
+  `svg-sanitizer/` and loaded with `require_once`.
+- The shared ShortPixel modules (the modules repository, cloned next to this
+  one as `../modules`) are bundled the way the other ShortPixel plugins bundle
+  them. The root `composer.json` requires them through a path repository and
+  runs `ShortPixel\Build\Build::BuildIt`, which copies each module into
+  `build/shortpixel/<module>/` and rewrites it for this plugin (`extra`
+  block): namespace `ShortPixel\` to `ShortPixel\SVG\`, hook prefix
+  `shortpixel/` to `wpsvg/`, text domain to `wp-svg-images`. It also writes
+  `build/shortpixel/autoload.php`, `PackageLoader.php` and `composer.json`
+  (the autoload map); the plugin file requires `autoload.php`. Only
+  `promo-banner` is bundled.
+- `build/shortpixel/` is generated and **tracked**: never edit it by hand. A
+  fix goes into `../modules`, then the build is run again. `vendor/`
+  (symlinks into `../modules`) and `composer.lock` are local and ignored; the
+  root `composer.json` is build tooling only and is not shipped
+  (`.distignore`, `.gitattributes`). Add no runtime dependency to it.
+- Rebuild in a container that has Composer, with the parent directory
+  mounted for the path repository:
+  ```sh
+  docker run --rm -v "$(dirname "$PWD")":/git -w "/git/$(basename "$PWD")" \
+    -e COMPOSER_ALLOW_SUPERUSER=1 spio-tests:php8.3 composer update
+  ```
+  Then regenerate the translation template, which holds the banner's strings.
+- The rewrite matters because other ShortPixel plugins bundle the same
+  modules under their own names and run on the same site: this plugin's copy
+  must never keep the source names.
 - Runtime PHP extensions used: `fileinfo`, `dom`, `libxml`, `simplexml`,
   `zlib`; `mbstring` optional.
-- Test tooling lives under `tests/` with its own `tests/composer.json`; never
-  add a Composer manifest at the plugin root.
+- Test tooling lives under `tests/` with its own `tests/composer.json`; keep
+  test dependencies out of the root manifest.
 - Development tools run in Docker; do not assume PHP, Composer or Node on the
   host.
 
@@ -58,6 +85,9 @@ bin/test.sh --verify                          # prove the environment works
 |---|---|
 | `wp-svg-images.php` | Plugin header, loads the sanitizer, `WPSVG_allowedTags`, `WPSVG_allowedAttrs`, `WPSVG` (all behaviour), activation hook, `new WPSVG()` |
 | `upsell.php` | Settings-page partial for the ShortPixel Image Optimizer offer; runs with `$this` = `WPSVG` |
+| `uninstall.php` | Deletes the promo banner's dismissals when the plugin is deleted |
+| `build/shortpixel/` | Generated copy of the shared modules (`promo-banner`) and their autoloader; do not edit, rebuild |
+| `composer.json` | The module build: path repository `../modules`, namespace / hook / text-domain rewrite |
 | `svg-sanitizer/` | Vendored `enshrined/svg-sanitize` (namespace `enshrined\svgSanitize`), loaded only when no other copy is already loaded |
 | `assets/` | Upsell JS/CSS and logo |
 | `languages/` | Translation template |
@@ -86,7 +116,15 @@ Upload flow for a user whose role allows SVG:
   `1` sanitized, `2` unrestricted. Read into `$this->settings` on `init`; a
   missing key means disabled in the upload filters.
 - **Other state.** Option `WPSVGActivated` (one-shot activation redirect),
-  user meta `wpsvg_notice_dismissed`.
+  user meta `wpsvg_notice_dismissed`, option `wpsvg-promo-banner` (promo
+  banner dismissals per site: campaign id => time).
+- **Promo banner.** `WPSVG::promo_banner()` (on `admin_init`) configures the
+  campaign of the bundled `promo-banner` module; the settings page prints it
+  under its heading. It shows there only, inside the campaign window, to
+  users with `manage_options`, until dismissed for the site. Its hooks carry
+  the `wpsvg/` prefix (`wpsvg/promo_banner/show`, `wpsvg/settings/no_banner`,
+  ...); the `SHORTPIXEL_NO_BANNER` constant silences it too. A new campaign
+  is a new `id`, window and link in that method.
 - **Public extension points.** Filters `WPSVG_setAllowedTags`,
   `WPSVG_setAllowedAttrs` (documented in `readme.txt`).
 - **Third parties.** Beaver Builder (`fl_module_upload_regex`), WP All Import
@@ -97,7 +135,8 @@ Upload flow for a user whose role allows SVG:
   line endings and ASCII only; keep both. Indent with tabs in plugin code and
   four spaces in `svg-sanitizer/`.
 - **Vendored code.** Do not reformat `svg-sanitizer/`; documentation-only
-  changes are allowed there.
+  changes are allowed there. `build/shortpixel/` is generated: no changes at
+  all.
 
 ## Non-negotiable rules
 

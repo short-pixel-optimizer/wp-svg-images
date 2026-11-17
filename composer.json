@@ -1,0 +1,29 @@
+{
+    "name": "short-pixel-optimizer/wp-svg-images",
+    "description": "Bundles the shared ShortPixel modules (../modules) into build/shortpixel/. Not a runtime dependency manager: vendor/ is never shipped.",
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../modules/*",
+            "options": {
+                "symlink": true
+            }
+        },
+        {
+            "packagist.org": false
+        }
+    ],
+    "require": {
+        "shortpixel/build": "@dev",
+        "shortpixel/promo-banner": ">=1.0"
+    },
+    "scripts": {
+        "post-update-cmd": "\\ShortPixel\\Build\\Build::BuildIt",
+        "buildSP": "\\ShortPixel\\Build\\Build::BuildIt"
+    },
+    "extra": {
+        "targetNamespace": "ShortPixel\\SVG",
+        "targetFilter": "wpsvg",
+        "targetTextDomain": "wp-svg-images"
+    }
+}

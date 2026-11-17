@@ -11,7 +11,7 @@ const SETTINGS_PAGE = '/wp-admin/options-general.php?page=wp-svg-images.php';
  * Puts the site into a known state through the test-only helper plugin.
  *
  * @param {import('@playwright/test').APIRequestContext} request
- * @param {{plugin?: 'active'|'inactive', settings?: Object<string, number>|null, activated?: boolean}} [state]
+ * @param {{plugin?: 'active'|'inactive', settings?: Object<string, number>|null, activated?: boolean, campaign?: boolean}} [state]
  * @return {Promise<Object>} The state after the reset.
  */
 async function resetSite( request, state = {} ) {

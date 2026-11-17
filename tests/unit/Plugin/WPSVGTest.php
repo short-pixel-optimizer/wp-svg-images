@@ -70,6 +70,7 @@ class WPSVGTest extends WPSVGTestCase {
 			array( 'action', 'init', 'plugin_init', 10 ),
 			array( 'action', 'admin_init', 'add_svg_support', 10 ),
 			array( 'action', 'admin_init', 'upsell', 10 ),
+			array( 'action', 'admin_init', 'promo_banner', 10 ),
 			array( 'action', 'admin_footer', 'fix_svg_thumbnail_size', 10 ),
 			array( 'filter', 'upload_mimes', 'add_svg_mime', 10 ),
 			array( 'filter', 'wp_check_filetype_and_ext', 'wp_check_filetype_and_ext', 100 ),

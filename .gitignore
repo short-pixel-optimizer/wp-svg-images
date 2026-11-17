@@ -1,16 +1,19 @@
-vendor
-composer.lock
 .DS_Store
 .env.testing
 /bin/.
 /composer.phar
 .env.local
-/build/
 /wordpress/
 /travis_output/
 
 # Test environment
+/tests/vendor/
 !tests/composer.lock
 /tests/.cache/
 /tests/.results/
 /tests/e2e/node_modules/
+
+# Module build (composer.json): the path-repository symlinks and the lock are
+# local; build/shortpixel/ IS tracked.
+/vendor/
+/composer.lock
