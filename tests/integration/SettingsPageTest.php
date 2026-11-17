@@ -201,8 +201,7 @@ class SettingsPageTest extends WPSVGIntegrationTestCase {
 	}
 
 	/**
-	 * What the page shows for a fresh install. Uploads are blocked in that
-	 * state; UploadPermissionTest pins the contradiction.
+	 * What a fresh install shows; UploadPermissionTest checks uploads match.
 	 */
 	public function test_roles_without_a_saved_value_are_shown_as_sanitized() {
 		$this->set_permissions( null );

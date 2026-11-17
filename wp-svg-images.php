@@ -331,7 +331,7 @@ if( ! class_exists('WPSVG') ){
 				$roles = (array)$user->roles;
 				$unrestricted = false;
 				foreach( $roles as $role ){
-					if( isset( $this->settings[ 'role_' . esc_attr( $role ) ] ) && intval( $this->settings[ 'role_' . esc_attr( $role ) ] ) === 2 ){
+					if( $this->role_permission( $role ) === 2 ){
 						$unrestricted = true;
 						break;
 					}
@@ -566,8 +566,8 @@ if( ! class_exists('WPSVG') ){
 		 * $settings.
 		 *
 		 * Hooked to `init`. Until it runs, every permission check treats all
-		 * roles as disabled. On a network every site has its own option, and a
-		 * site without one (every newly created site) allows no SVG uploads.
+		 * roles as disabled. On a network every site has its own option, and
+		 * a new site uses the role_permission() defaults until it is saved.
 		 *
 		 * @todo The settings are read once per request, so after
 		 *       switch_to_blog() the permission checks still use the settings
@@ -580,6 +580,27 @@ if( ! class_exists('WPSVG') ){
 		 */
 		function plugin_init(){
 			$this->settings = get_option('wpsvg_settings');
+		}
+
+		/**
+		 * Gets a role's SVG permission: 0 disabled, 1 sanitized, 2 unrestricted.
+		 *
+		 * Until the settings are saved once, roles that can upload files get 1,
+		 * which matches what the settings page shows. Before `init` it's 0.
+		 *
+		 * @param string $role Role slug.
+		 * @return int
+		 */
+		function role_permission( $role ){
+			if( is_array( $this->settings ) ){
+				$key = 'role_' . esc_attr( $role );
+				return isset( $this->settings[ $key ] ) ? intval( $this->settings[ $key ] ) : 0;
+			}
+			if( $this->settings === null ){
+				return 0;
+			}
+			$role_object = get_role( $role );
+			return ( $role_object && $role_object->has_cap( 'upload_files' ) ) ? 1 : 0;
 		}
 
 		/**
@@ -596,11 +617,9 @@ if( ! class_exists('WPSVG') ){
 		 * shown as "enable sanitized SVG upload". Includes upsell.php when
 		 * ShortPixel Image Optimizer is not installed or not active.
 		 *
-		 * @todo A role without a saved value is displayed as "enable sanitized
-		 *       SVG upload", but add_svg_mime() and wp_check_filetype_and_ext()
-		 *       treat a missing value as disabled, so a fresh install blocks
-		 *       SVG uploads until the form is saved. Apply the same default
-		 *       (1) in the permission checks, or show "disable" here.
+		 * @todo Once settings are saved, a role added later still shows as
+		 *       "sanitized" but role_permission() treats it as disabled. Show
+		 *       "disable" for it instead.
 		 * @todo Posted values are saved for any `role_*` key, including roles
 		 *       that do not exist or lack `upload_files`, and are not limited
 		 *       to 0, 1 and 2. Whitelist the keys against $wp_roles and clamp
@@ -832,7 +851,7 @@ if( ! class_exists('WPSVG') ){
 			$user = wp_get_current_user();
 			$roles = (array)$user->roles;
 			foreach( $roles as $role ){
-				if( isset( $this->settings[ 'role_' . esc_attr( $role ) ] ) && intval( $this->settings[ 'role_' . esc_attr( $role ) ] ) ){
+				if( $this->role_permission( $role ) ){
 					if( substr( $filename, -4 ) == '.svg' ){
 						$filetype_ext_data['ext'] = 'svg';
 						$filetype_ext_data['type'] = 'image/svg+xml';
@@ -939,7 +958,7 @@ if( ! class_exists('WPSVG') ){
 		 *
 		 * Hooked to `upload_mimes`. This is the permission gate: the
 		 * extensions are added when any of the current user's roles has a
-		 * non-zero permission (sanitized or unrestricted). Users with no
+		 * non-zero permission (see role_permission()). Users with no
 		 * matching role, including logged-out requests and WP-CLI without
 		 * `--user`, get the list unchanged. On a network the extensions are
 		 * added after WordPress has reduced the list to the network's
@@ -957,7 +976,7 @@ if( ! class_exists('WPSVG') ){
 			$user = wp_get_current_user();
 			$roles = (array)$user->roles;
 			foreach( $roles as $role ){
-				if( isset( $this->settings[ 'role_' . esc_attr( $role ) ] ) && intval( $this->settings[ 'role_' . esc_attr( $role ) ] ) ){
+				if( $this->role_permission( $role ) ){
 					$mimes['svg'] = 'image/svg+xml';
 					$mimes['svgz'] = 'image/svg+xml';
 					break;

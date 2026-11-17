@@ -156,7 +156,6 @@ class SafeSvgTest extends CompatTestCase {
 		return array(
 			'role disabled'            => array( array( 'author' => 0 ) ),
 			'role not in the settings' => array( array( 'administrator' => 1 ) ),
-			'no settings saved'        => array( null ),
 		);
 	}
 

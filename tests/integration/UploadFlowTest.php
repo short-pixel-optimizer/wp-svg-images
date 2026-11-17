@@ -118,8 +118,18 @@ class UploadFlowTest extends WPSVGIntegrationTestCase {
 		return array(
 			'role disabled'            => array( array( 'author' => 0 ), 'author' ),
 			'role not in the settings' => array( array( 'author' => 1 ), 'editor' ),
-			'no settings saved'        => array( null, 'administrator' ),
 		);
+	}
+
+	public function test_media_upload_on_a_fresh_install_is_stored_sanitized() {
+		$this->set_permissions( null );
+		$this->log_in_as( 'administrator' );
+
+		$id = $this->media_upload( self::DIRTY_SVG );
+
+		$this->assertIsInt( $id );
+		$this->assertSame( 'image/svg+xml', get_post_mime_type( $id ) );
+		$this->assertSame( self::SANITIZED_SVG, $this->stored_content( $id ) );
 	}
 
 	public function test_media_upload_of_a_malformed_svg_is_refused_with_the_plugin_message() {

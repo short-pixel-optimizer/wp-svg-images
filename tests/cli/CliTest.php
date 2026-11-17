@@ -110,8 +110,18 @@ class CliTest extends CliTestCase {
 		return array(
 			'role disabled'                        => array( array( 'editor' => 0 ), 'editor' ),
 			'role not in the settings'             => array( array( 'author' => 1 ), 'editor' ),
-			'administrator before a settings save' => array( null, 'administrator' ),
+			'contributor before a settings save'   => array( null, 'contributor' ),
 		);
+	}
+
+	public function test_import_before_a_settings_save_stores_a_sanitized_svg() {
+		$this->activate_plugin( null );
+
+		$result = $this->import( $this->file_to_import( self::DIRTY_SVG ), 'admin' );
+
+		$this->assertSame( '', $result['stderr'] );
+		$this->assertSame( 'image/svg+xml', $this->wp_ok( 'post', 'get', (string) $result['id'], '--field=post_mime_type' ) );
+		$this->assertSame( self::SANITIZED_SVG, $this->stored_content( $result['id'] ) );
 	}
 
 	public function test_import_as_an_unrestricted_user_stores_the_file_as_it_is() {

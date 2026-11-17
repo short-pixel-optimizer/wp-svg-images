@@ -83,8 +83,9 @@ Upload flow for a user whose role allows SVG:
   constructor; the instance is not stored anywhere. Tests reach it through
   the registered callbacks or by constructing a new instance.
 - **Settings.** Option `wpsvg_settings`: `role_<slug>` => `0` disabled,
-  `1` sanitized, `2` unrestricted. Read into `$this->settings` on `init`; a
-  missing key means disabled in the upload filters.
+  `1` sanitized, `2` unrestricted. Read into `$this->settings` on `init` and
+  resolved per role by `role_permission()`: once saved, a missing key means
+  disabled; before the first save, roles with `upload_files` get `1`.
 - **Other state.** Option `WPSVGActivated` (one-shot activation redirect),
   user meta `wpsvg_notice_dismissed`.
 - **Public extension points.** Filters `WPSVG_setAllowedTags`,
