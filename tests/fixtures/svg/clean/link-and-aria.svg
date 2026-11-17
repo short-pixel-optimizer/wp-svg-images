@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" role="img" aria-label="Linked square">
+  <a href="https://example.org/page">
+    <rect width="10" height="10" data-kind="square" aria-hidden="true"/>
+  </a>
+  <a href="#top">
+    <circle cx="5" cy="5" r="2"/>
+  </a>
+</svg>

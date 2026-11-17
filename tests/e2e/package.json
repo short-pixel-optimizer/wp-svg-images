@@ -1,0 +1,9 @@
+{
+  "name": "wp-svg-images-e2e",
+  "description": "Browser tests for WP SVG Images; not part of the released plugin. Run through bin/test.sh.",
+  "private": true,
+  "license": "GPL-2.0-or-later",
+  "devDependencies": {
+    "@playwright/test": "1.65.1"
+  }
+}

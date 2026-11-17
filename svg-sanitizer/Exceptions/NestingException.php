@@ -3,6 +3,14 @@ namespace enshrined\svgSanitize\Exceptions;
 
 use Exception;
 
+/**
+ * Thrown by Subject::hasInfiniteLoop() when `<use>` references nest deeper
+ * than the configured limit; carries the element where the limit was hit.
+ *
+ * The nullable parameter types require PHP 7.1 or later.
+ *
+ * @package enshrined\svgSanitize\Exceptions
+ */
 class NestingException extends \Exception
 {
     /**

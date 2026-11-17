@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<!-- Suite `cli`: WP-CLI commands against a real WordPress install. PHPUnit itself loads no WordPress. Run through bin/test.sh. -->
+<phpunit
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:noNamespaceSchemaLocation="../vendor/phpunit/phpunit/phpunit.xsd"
+	bootstrap="../bootstrap/cli.php"
+	cacheResult="false"
+	colors="true"
+	failOnRisky="true"
+	failOnWarning="true"
+	beStrictAboutOutputDuringTests="true"
+>
+	<testsuites>
+		<testsuite name="cli">
+			<directory suffix="Test.php">../cli</directory>
+		</testsuite>
+	</testsuites>
+</phpunit>

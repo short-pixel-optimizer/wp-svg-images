@@ -1,9 +1,17 @@
 <?php
 namespace enshrined\svgSanitize;
 
+/**
+ * Stateless DOM helpers for href handling and element containment.
+ *
+ * @package enshrined\svgSanitize
+ */
 class Helper
 {
     /**
+     * Returns the element's link target, preferring a plain `href` attribute
+     * over `xlink:href` (namespace http://www.w3.org/1999/xlink).
+     *
      * @param \DOMElement $element
      * @return string|null
      */
@@ -19,6 +27,10 @@ class Helper
     }
 
     /**
+     * Returns the identifier of a same-document reference: `#foo` gives `foo`,
+     * `#` gives an empty string. Returns null for non-strings and for values
+     * that do not start with `#`.
+     *
      * @param string $href
      * @return string|null
      */
@@ -31,6 +43,9 @@ class Helper
     }
 
     /**
+     * Tells whether $needle is $haystack itself or one of its element
+     * descendants (recursive, depth-first).
+     *
      * @param \DOMElement $needle
      * @param \DOMElement $haystack
      * @return bool

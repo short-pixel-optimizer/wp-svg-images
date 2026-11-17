@@ -8,12 +8,21 @@
 	Author URI:		https://shortpixel.com/
  	GitHub Plugin URI:	https://github.com/short-pixel-optimizer/wp-svg-images
 	Primary Branch: 	main
-	Text Domain:		wpsvg
+	Text Domain:		wp-svg-images
 	Domain Path:		/languages
 */
 
 defined( 'ABSPATH' ) ||	exit;
 
+/*
+ * Load the bundled sanitizer unless another copy of the library is already
+ * available. class_exists() also asks registered autoloaders, so a plugin
+ * that loads earlier and ships the library through Composer (Safe SVG, for
+ * example) supplies every sanitizer class and the bundled files are not read
+ * at all. A plugin that loads later uses the bundled copy instead. The two
+ * cases behave differently wherever the copies differ: the defects documented
+ * in svg-sanitizer/ apply to the bundled copy only.
+ */
 if( ! class_exists('enshrined\svgSanitize\Sanitizer') ){
 	require_once( 'svg-sanitizer/data/AttributeInterface.php' );
 	require_once( 'svg-sanitizer/data/TagInterface.php' );
@@ -28,26 +37,113 @@ if( ! class_exists('enshrined\svgSanitize\Sanitizer') ){
 	require_once( 'svg-sanitizer/Sanitizer.php' );
 }
 
+/**
+ * Tag whitelist used by the plugin's sanitizer, extensible through a filter.
+ *
+ * Declared unconditionally: a second copy of this file (for example the plugin
+ * installed twice under different folder names) triggers a fatal
+ * "Cannot declare class" error before the `class_exists( 'WPSVG' )` guard below
+ * is reached.
+ */
 class WPSVG_allowedTags extends \enshrined\svgSanitize\data\AllowedTags{
+	/**
+	 * Returns the library's default tag whitelist passed through the
+	 * `WPSVG_setAllowedTags` filter.
+	 *
+	 * Tag names are compared case-insensitively by the sanitizer, which
+	 * lower-cases this list when it is applied.
+	 *
+	 * @return array List of allowed element names.
+	 */
 	public static function getTags(){
 		return apply_filters( 'WPSVG_setAllowedTags', parent::getTags() );
 	}
 }
 
+/**
+ * Attribute whitelist used by the plugin's sanitizer, extensible through a filter.
+ */
 class WPSVG_allowedAttrs extends \enshrined\svgSanitize\data\AllowedAttributes{
+	/**
+	 * Returns the library's default attribute whitelist passed through the
+	 * `WPSVG_setAllowedAttrs` filter.
+	 *
+	 * Attribute names are compared case-insensitively by the sanitizer.
+	 * Attributes starting with `aria-` or `data-` are always kept, whatever
+	 * this list contains.
+	 *
+	 * @return array List of allowed attribute names.
+	 */
 	public static function getAttributes(){
 		return apply_filters( 'WPSVG_setAllowedAttrs', parent::getAttributes() );
 	}
 }
 
 if( ! class_exists('WPSVG') ){
+	/**
+	 * Main plugin class: SVG upload permissions, sanitization, dimensions and
+	 * Media Library previews.
+	 *
+	 * One instance is created when this file loads and every behaviour is
+	 * attached to WordPress hooks in the constructor. No reference to the
+	 * instance is kept in a global; it is reachable only through the
+	 * registered callbacks.
+	 *
+	 * Permissions are stored per role in the `wpsvg_settings` option as
+	 * `role_<slug>` => int, where 0 disables SVG upload, 1 allows sanitized
+	 * upload and 2 allows unrestricted (unsanitized) upload.
+	 *
+	 * On a network the plugin has no network-wide settings: each site has its
+	 * own settings page and option. The activation hook stores its redirect
+	 * flag on the site the activation request ran on only, so after a network
+	 * activation only that site's administrators are redirected.
+	 *
+	 * @todo The plugin has no uninstall routine, so deleting it leaves the
+	 *       `wpsvg_settings` option, a pending `WPSVGActivated` option and
+	 *       the `wpsvg_notice_dismissed` user meta in the database. Add an
+	 *       uninstall.php that deletes them.
+	 */
 	class WPSVG{
+		/**
+		 * Hook suffix of the settings page, as returned by add_submenu_page().
+		 *
+		 * @var string|false|null
+		 */
 		var $plugin_admin_page;
+
+		/**
+		 * Per-role upload permissions loaded from the `wpsvg_settings` option
+		 * on `init`. Null before `init`, false when the option does not exist.
+		 *
+		 * @var array|false|null
+		 */
 		var $settings;
+
+		/**
+		 * Sanitizer configured to drop the XML declaration and minify output.
+		 *
+		 * @var \enshrined\svgSanitize\Sanitizer
+		 */
 		var $sanitizer;
+
+		/**
+		 * Whether ShortPixel Image Optimizer is installed. Set on `admin_init`.
+		 *
+		 * @var bool
+		 */
 		var $spio_installed = false;
+
+		/**
+		 * Whether ShortPixel Image Optimizer is active. Set on `admin_init`.
+		 *
+		 * @var bool
+		 */
 		var $spio_active = false;
 
+		/**
+		 * Creates the sanitizer and registers every action and filter used
+		 * by the plugin.
+		 */
 		function __construct(){
 			$this->sanitizer = new enshrined\svgSanitize\Sanitizer();
 			$this->sanitizer->removeXMLTag( true );
@@ -75,6 +171,31 @@ if( ! class_exists('WPSVG') ){
 			add_filter( 'wp_all_import_image_mime_type', array( $this, 'wp_all_import_svgs' ), 10, 2 );
 		}
 
+		/**
+		 * Supplies the SVG MIME type to WP All Import when it could not detect one.
+		 *
+		 * Hooked to `wp_all_import_image_mime_type`. Returns `image/svg+xml`
+		 * only when `$mime_type` is empty and the path ends in `.svg` or `.svgz`;
+		 * otherwise returns `$mime_type` unchanged. Upload permissions are not
+		 * checked here, so imports create SVG attachments whatever the
+		 * per-role settings say. WP All Import finds no type for SVG images
+		 * by itself: without this filter the attachment gets an empty MIME
+		 * type. Current releases sanitize `.svg` files on their own; every
+		 * release stores them with a lower-case extension.
+		 *
+		 * @todo The extension check is case-sensitive, so `logo.SVG` keeps an
+		 *       empty MIME type. Compare against strtolower( $image_filepath ).
+		 * @todo Nothing is sanitized here. Current WP All Import releases
+		 *       sanitize `.svg` files themselves, but older releases do not,
+		 *       and no release sanitizes `.svgz`, so with those an imported
+		 *       file gets the SVG type and keeps its scripts. Sanitize the
+		 *       file with sanitize() before reporting the type, or do not
+		 *       report a type for a file that could not be sanitized.
+		 *
+		 * @param string $mime_type      MIME type detected by WP All Import.
+		 * @param string $image_filepath Path of the imported image.
+		 * @return string
+		 */
 		function wp_all_import_svgs( $mime_type, $image_filepath ){
 			if( empty( $mime_type ) && ( substr( $image_filepath, -4 ) == '.svg' || substr( $image_filepath, -5 ) == '.svgz' ) ){
 				return 'image/svg+xml';
@@ -82,6 +203,16 @@ if( ! class_exists('WPSVG') ){
 			return $mime_type;
 		}
 
+		/**
+		 * Detects ShortPixel Image Optimizer and enqueues the upsell assets.
+		 *
+		 * Hooked to `admin_init`. Sets $spio_installed and $spio_active, and
+		 * when the plugin is not installed or not active enqueues
+		 * `spio-upsell.css` and `spio-upsell.js` on every admin page, not only
+		 * on the settings page where the upsell box is rendered.
+		 *
+		 * @return void
+		 */
 		function upsell(){
 			$plugins = get_plugins();
 			$this->spio_installed = isset( $plugins['shortpixel-image-optimiser/wp-shortpixel.php'] );
@@ -93,12 +224,34 @@ if( ! class_exists('WPSVG') ){
 			}
 		}
 
+		/**
+		 * AJAX handler that permanently dismisses the settings notice for the
+		 * current user.
+		 *
+		 * Hooked to `wp_ajax_wpsvg_notice_dismissed`. Requires a valid
+		 * `wpsvg_notice_dismissed` nonce in `_wpnonce`; an invalid nonce ends
+		 * the request with check_ajax_referer()'s -1 response. On success adds
+		 * the `wpsvg_notice_dismissed` user meta (once) and returns without
+		 * output, so admin-ajax.php answers "0".
+		 *
+		 * @return void
+		 */
 		function wpsvg_notice_dismissed(){
 			if( defined('DOING_AJAX') && DOING_AJAX && check_ajax_referer('wpsvg_notice_dismissed') ){
 				add_user_meta( get_current_user_id(), 'wpsvg_notice_dismissed', 1, true );
 			}
 		}
 
+		/**
+		 * Prints the dismissible "new settings" notice.
+		 *
+		 * Hooked to `admin_notices`. Shown only to users with `manage_options`
+		 * who have not dismissed it, and only on the `plugins`,
+		 * `plugin-install`, `upload` and `attachment` screens. Includes an
+		 * inline script that posts the dismissal to admin-ajax.php.
+		 *
+		 * @return false|void False when the user lacks `manage_options`.
+		 */
 		function admin_notices(){
 			if (! current_user_can('manage_options')) {
 				 return false;
@@ -106,9 +259,9 @@ if( ! class_exists('WPSVG') ){
 			if( ! get_user_meta( get_current_user_id(), 'wpsvg_notice_dismissed' ) ){
 				if( function_exists('get_current_screen') && isset( get_current_screen()->id ) && in_array( get_current_screen()->id, array( 'plugins', 'plugin-install', 'upload', 'attachment' ) ) ){ ?>
 					<div class="wpsvg-notice notice notice-success is-dismissible">
-						<p><?php printf( /* translators: %s: link to the plugin settings page, with the text "Settings page". */ esc_html__( 'Hey, WP SVG Images has some new settings! Activate SVG sanitization and manage permissions by going to the new %s.', 'wpsvg' ), '<a href="' . admin_url('options-general.php?page=wp-svg-images.php') . '">' . /* translators: link text that completes the sentence "...by going to the new %s." */ esc_html__( 'Settings page', 'wpsvg' ) . '</a>' ) ?></p>
-						<p><small style="opacity:.9"><?php printf( /* translators: %s: link to the ShortPixel website, with the text "ShortPixel". */ esc_html__( 'WP SVG Images is now a part of the %s family.', 'wpsvg' ), '<a href="https://shortpixel.com/api-tools" target="_blank">ShortPixel</a>' ) ?></small></p>
-						<p><a href="<?php echo admin_url('options-general.php?page=wp-svg-images.php') ?>" class="button button-primary"><?php /* translators: button label. */ esc_html_e( 'Go to Settings', 'wpsvg' ) ?></a></p>
+						<p><?php printf( /* translators: %s: link to the plugin settings page, with the text "Settings page". */ esc_html__( 'Hey, WP SVG Images has some new settings! Activate SVG sanitization and manage permissions by going to the new %s.', 'wp-svg-images' ), '<a href="' . admin_url('options-general.php?page=wp-svg-images.php') . '">' . /* translators: link text that completes the sentence "...by going to the new %s." */ esc_html__( 'Settings page', 'wp-svg-images' ) . '</a>' ) ?></p>
+						<p><small style="opacity:.9"><?php printf( /* translators: %s: link to the ShortPixel website, with the text "ShortPixel". */ esc_html__( 'WP SVG Images is now a part of the %s family.', 'wp-svg-images' ), '<a href="https://shortpixel.com/api-tools" target="_blank">ShortPixel</a>' ) ?></small></p>
+						<p><a href="<?php echo admin_url('options-general.php?page=wp-svg-images.php') ?>" class="button button-primary"><?php /* translators: button label. */ esc_html_e( 'Go to Settings', 'wp-svg-images' ) ?></a></p>
 					</div>
 					<script>
 					jQuery(document).ready(function($){
@@ -121,12 +274,51 @@ if( ! class_exists('WPSVG') ){
 			}
 		}
 
+		/**
+		 * Sanitizes SVG uploads and sideloads in place before WordPress moves
+		 * them.
+		 *
+		 * Hooked to `wp_handle_upload_prefilter` and
+		 * `wp_handle_sideload_prefilter`, so it runs for files handled by
+		 * wp_handle_upload() and by wp_handle_sideload() (REST API raw-body
+		 * uploads, media_handle_sideload(), media_sideload_image(), WP-CLI
+		 * imports). A file is treated as SVG when its name ends in `.svg` or
+		 * `.svgz`, in any case, or when mime_content_type() reports its
+		 * content as `image/svg+xml` or `image/svg`; the client-supplied type
+		 * is ignored. Such a file is rewritten by sanitize() unless one of the
+		 * current user's roles is set to unrestricted (2), so content that is
+		 * not XML, such as a PNG image or plain text named `.svg`, is refused.
+		 * Upload permission itself is enforced by add_svg_mime(), not here.
+		 *
+		 * Another active SVG plugin keeps its own rules. Safe SVG, for
+		 * example, sanitizes every SVG upload and sideload a second time, so
+		 * an unrestricted role's file is sanitized as well and elements
+		 * allowed through `WPSVG_setAllowedTags` are removed again.
+		 *
+		 * Sets `$file['error']` when `tmp_name` is missing or not a string
+		 * (for every upload, SVG or not), and when sanitization fails.
+		 *
+		 * @todo No permission is checked here, so when another plugin allows
+		 *       the SVG type (Safe SVG does, for every user who can upload
+		 *       files), a role set to "disable SVG upload" uploads SVGs.
+		 *       Set `$file['error']` for SVG files from users without a
+		 *       non-zero permission.
+		 * @todo Exceptions thrown by the sanitizer (see sanitize()), for
+		 *       example for an XHTML page named `.svg`, are not caught and
+		 *       abort the upload request with a fatal error instead of
+		 *       setting `$file['error']`.
+		 *
+		 * @param array $file Single entry of `$_FILES` (`name`, `type`,
+		 *                    `tmp_name`, `error`, `size`).
+		 * @return array The same array, with `error` set when the upload must
+		 *               be rejected.
+		 */
 		function wp_handle_upload_prefilter( $file ){
 
 			// Security:  form data can be faked, including the filetype. Check tmpfile.
 			if ( ! isset($file['tmp_name']) || ! is_string($file['tmp_name']))
 			{
-				$file['error'] = __( 'Temp file is not set!', 'wpsvg' );
+				$file['error'] = __( 'Temp file is not set!', 'wp-svg-images' );
 				return $file; 
 			}
 
@@ -150,12 +342,39 @@ if( ! class_exists('WPSVG') ){
 				}
 
 				if( ! $unrestricted && ! $this->sanitize( $file['tmp_name'] ) ){
-					$file['error'] = __( 'This SVG cannot be sanitized!', 'wpsvg' );
+					$file['error'] = __( 'This SVG cannot be sanitized!', 'wp-svg-images' );
 				}
 			}
 			return $file;
 		}
 
+		/**
+		 * Sanitizes an SVG or gzipped SVG file and overwrites it with the result.
+		 *
+		 * Gzipped content (detected by is_gzipped()) is decoded, sanitized and
+		 * re-encoded. The tag and attribute whitelists are re-read through the
+		 * `WPSVG_setAllowedTags` and `WPSVG_setAllowedAttrs` filters on every
+		 * call. The sanitizer output then goes through clean_animations().
+		 * Disallowed elements and attributes are removed and the file is kept;
+		 * the method fails when the content cannot be decoded or parsed as
+		 * XML, and when nothing but an XML declaration is left, as for a root
+		 * element written with a prefix (`<x:svg>`, see Sanitizer::sanitize()).
+		 * An empty file is "sanitized" to an empty string and reported as
+		 * success. Gzip content that cannot be decoded also raises a PHP
+		 * warning from gzdecode().
+		 *
+		 * @todo Well-formed XML whose root element is not `<svg>`, and an SVG
+		 *       in which a `<use>` references its own parent element, make the
+		 *       sanitizer throw a LogicException, which propagates to the
+		 *       caller. Catch Throwable here and return false.
+		 * @todo A path that cannot be read raises a PHP warning, then an empty
+		 *       file is written to that path and success is reported. Return
+		 *       false when file_get_contents() fails.
+		 *
+		 * @param string $file Absolute path of the file to sanitize.
+		 * @return bool True when the file was rewritten, false when it could
+		 *              not be decoded or parsed or has no root element left.
+		 */
 		function sanitize( $file ){
 			$svg_code = file_get_contents( $file );
 			if( $is_zipped = $this->is_gzipped( $svg_code ) ){
@@ -188,9 +407,46 @@ if( ! class_exists('WPSVG') ){
 			return true;
 		}
 
-		// Remove animation elements whose attributeName is not a known safe attribute: animating href
-		// (or another URL attribute) to javascript: runs script in WebKit. Done here, not in the bundled
-		// sanitizer, because another plugin may have loaded its own copy of that library.
+		/**
+		 * Removes animation elements that could turn an attribute into a
+		 * script URL.
+		 *
+		 * Animating `href` or another URL attribute to a `javascript:` URL
+		 * runs script in WebKit. Called by sanitize() on the sanitizer output;
+		 * the check lives here rather than in the bundled library because
+		 * another plugin may have loaded its own copy of that library, which
+		 * is then used instead.
+		 *
+		 * Elements are matched by local name, ignoring case and namespace:
+		 *
+		 * - `animate`, `set` and `animateColor` are removed unless their
+		 *   `attributeName` is one of a fixed list of geometry and
+		 *   presentation attributes (`x`, `width`, `d`, `fill`, `opacity`,
+		 *   `transform` and similar);
+		 * - `animateTransform` is removed unless it targets `transform`,
+		 *   `gradientTransform` or `patternTransform`;
+		 * - `animateMotion` is removed whenever it has an `attributeName`.
+		 *
+		 * `attributeName` is compared ignoring case and surrounding
+		 * whitespace; an element without it is not removed for its target.
+		 * Any of these elements is also removed when its `values`, `from`,
+		 * `to` or `by` attribute contains `javascript:`, `vbscript:` or
+		 * `data:`, ignoring case, spaces and control characters, whatever
+		 * the target.
+		 *
+		 * The default tag whitelist allows `animateColor`, `animateMotion`
+		 * and `animateTransform`; `animate` and `set` reach this method only
+		 * when a site adds them through the `WPSVG_setAllowedTags` filter.
+		 *
+		 * @param string $svg_code Sanitized SVG markup.
+		 * @return string|false The markup unchanged when it is empty, only
+		 *                      whitespace, or has nothing to remove; the
+		 *                      root element serialized again, without an
+		 *                      XML declaration and with explicit closing
+		 *                      tags, when something was removed; false when
+		 *                      it cannot be parsed as XML or has no root
+		 *                      element.
+		 */
 		function clean_animations( $svg_code ){
 			if( trim( $svg_code ) === '' ) return $svg_code;
 
@@ -236,6 +492,13 @@ if( ! class_exists('WPSVG') ){
 			return $dom->saveXML( $dom->documentElement, LIBXML_NOEMPTYTAG );
 		}
 
+		/**
+		 * Tells whether a string starts with the gzip/deflate magic bytes
+		 * (1F 8B 08).
+		 *
+		 * @param string $svg_code Raw file content.
+		 * @return bool
+		 */
 		function is_gzipped( $svg_code ){
 			if( function_exists('mb_strpos') ){
 				return 0 === mb_strpos( $svg_code, "\x1f" . "\x8b" . "\x08" );
@@ -244,15 +507,39 @@ if( ! class_exists('WPSVG') ){
 			}
 		}
 
+		/**
+		 * Loads the `wp-svg-images` text domain, with the plugin's `languages`
+		 * folder as a fallback location.
+		 *
+		 * Hooked to `plugins_loaded`. From WordPress 6.7 the call only records
+		 * the folder and the file is loaded on the first translated string;
+		 * before 6.7 it is loaded at once. The text domain equals the plugin's
+		 * wordpress.org slug, so language packs from translate.wordpress.org
+		 * apply. WordPress uses `wp-svg-images-<locale>.mo` from
+		 * `WP_LANG_DIR/plugins` (where language packs are installed) when it
+		 * exists, and otherwise looks in the plugin's `languages` folder. The
+		 * plugin ships the template `languages/wp-svg-images.pot` only.
+		 *
+		 * @return void
+		 */
 		function plugins_loaded(){
-			load_plugin_textdomain( 'wpsvg', FALSE, basename( __DIR__ ) . '/languages/' );
+			load_plugin_textdomain( 'wp-svg-images', FALSE, basename( __DIR__ ) . '/languages/' );
 		}
 
+		/**
+		 * Registers the Settings > SVG images page and the "Settings" link on
+		 * the Plugins screen.
+		 *
+		 * Hooked to `admin_menu`. The page slug is `wp-svg-images.php` and
+		 * requires `manage_options`.
+		 *
+		 * @return void
+		 */
 		function plugin_menu_link(){
 			$this->plugin_admin_page = add_submenu_page(
 				'options-general.php',
-				__( 'SVG images', 'wpsvg' ),
-				__( 'SVG images', 'wpsvg' ),
+				__( 'SVG images', 'wp-svg-images' ),
+				__( 'SVG images', 'wp-svg-images' ),
 				'manage_options',
 				basename( __FILE__ ),
 				array( $this, 'admin_options_page' )
@@ -260,15 +547,69 @@ if( ! class_exists('WPSVG') ){
 			add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), array( $this, 'filter_plugin_actions' ), 10, 2 );
 		}
 
+		/**
+		 * Prepends a "Settings" link to the plugin's row on the Plugins screen.
+		 *
+		 * Hooked to `plugin_action_links_<basename>`.
+		 *
+		 * @param array  $links Action links.
+		 * @param string $file  Plugin basename (unused).
+		 * @return array
+		 */
 		function filter_plugin_actions( $links, $file ){
-			array_unshift( $links, '<a href="options-general.php?page=' . basename( __FILE__ ) . '">' . __( 'Settings', 'wpsvg' ) . '</a>' );
+			array_unshift( $links, '<a href="options-general.php?page=' . basename( __FILE__ ) . '">' . __( 'Settings', 'wp-svg-images' ) . '</a>' );
 			return $links;
 		}
 
+		/**
+		 * Loads the per-role permissions from the `wpsvg_settings` option into
+		 * $settings.
+		 *
+		 * Hooked to `init`. Until it runs, every permission check treats all
+		 * roles as disabled. On a network every site has its own option, and a
+		 * site without one (every newly created site) allows no SVG uploads.
+		 *
+		 * @todo The settings are read once per request, so after
+		 *       switch_to_blog() the permission checks still use the settings
+		 *       of the site the request started on, and code that uploads to
+		 *       another site in the same request is judged by the wrong
+		 *       site's permissions. Read the option when it is needed, or
+		 *       reload it on the `switch_blog` action.
+		 *
+		 * @return void
+		 */
 		function plugin_init(){
 			$this->settings = get_option('wpsvg_settings');
 		}
 
+		/**
+		 * Renders the settings page and saves the per-role permissions.
+		 *
+		 * Visiting the page dismisses the settings notice for the current user.
+		 * On POST with `plugin_sent` and a valid `save_these_settings` nonce
+		 * (field `settings_nonce`), replaces the whole `wpsvg_settings` option
+		 * with every posted `role_*` field cast to int; an invalid nonce ends
+		 * the request in wp_die(). The method itself checks no capability:
+		 * WordPress registers it for users with `manage_options` only, and it
+		 * returns at once on any other screen. Lists only roles that
+		 * have the `upload_files` capability; a role without a saved value is
+		 * shown as "enable sanitized SVG upload". Includes upsell.php when
+		 * ShortPixel Image Optimizer is not installed or not active.
+		 *
+		 * @todo A role without a saved value is displayed as "enable sanitized
+		 *       SVG upload", but add_svg_mime() and wp_check_filetype_and_ext()
+		 *       treat a missing value as disabled, so a fresh install blocks
+		 *       SVG uploads until the form is saved. Apply the same default
+		 *       (1) in the permission checks, or show "disable" here.
+		 * @todo Posted values are saved for any `role_*` key, including roles
+		 *       that do not exist or lack `upload_files`, and are not limited
+		 *       to 0, 1 and 2. Whitelist the keys against $wp_roles and clamp
+		 *       the values.
+		 * @todo The role display name is printed without escaping. Wrap it in
+		 *       esc_html( translate_user_role( ... ) ).
+		 *
+		 * @return void
+		 */
 		function admin_options_page(){
 			global $wp_roles;
 
@@ -290,16 +631,16 @@ if( ! class_exists('WPSVG') ){
 				}
 			} ?>
 			<div class="wrap">
-				<h2><?php _e( 'SVG images', 'wpsvg' ) ?></h2>
+				<h2><?php _e( 'SVG images', 'wp-svg-images' ) ?></h2>
 
-				<?php if( $show_update_notice ) echo '<div class="below-h2 updated"><p>' . __( 'Settings saved.', 'wpsvg' ) . '</p></div>'; ?>
+				<?php if( $show_update_notice ) echo '<div class="below-h2 updated"><p>' . __( 'Settings saved.', 'wp-svg-images' ) . '</p></div>'; ?>
 
 				<div class="postbox" style="margin-top:10px">
 					<div class="inside" style="padding-bottom:2px">
-						<h3><?php esc_html_e( 'Security notice', 'wpsvg' ) ?></h3>
-						<p><?php printf( /* translators: %1$s: opening <strong> tag, %2$s: closing </strong> tag, %3$s: line break. */ esc_html__( 'Every SVG image is an XML file, which can contain %1$smalicious code%2$s, that can lead to %1$sXSS or injection attacks%2$s.%3$sBelow you can decide which user roles (with upload capability) will be able to upload SVG images and also if their uploads will be sanitized.', 'wpsvg' ), '<strong>', '</strong>', '<br>' ) ?></p>
-						<p><?php printf( /* translators: %1$s: opening <code> tag, %2$s: closing </code> tag. The text between them is an option name and must match its translation. */ esc_html__( 'Sometimes you may need to upload some special SVG that includes your JavaScript code or other elements that are normally removed during sanitization - in that case, you can temporarily %1$senable unrestricted SVG upload%2$s if you are sure about your SVG code. Otherwise, it is recommended to use only the %1$senable sanitized SVG upload%2$s option.','wpsvg' ), '<code>', '</code>' ) ?> <a href="https://shortpixel.com/knowledge-base/article/524-about-sanitizing-svgs" target="_blank"><span class="dashicons dashicons-editor-help" style="text-decoration:none"></span><?php /* translators: link to an article about SVG sanitization. */ esc_html_e( 'Read more', 'wpsvg' ) ?></a></p>
-						<p class="notice notice-large notice-warning"><?php printf( /* translators: %1$s: opening <code> tag, %2$s: closing </code> tag. The text between them is an option name and must match its translation. */ esc_html__( 'You should %1$senable unrestricted SVG upload%2$s permanently only if you are absolutely sure that all users within this user role are responsible and experienced enough to detect malicious SVG code by themselves.', 'wpsvg' ), '<code>', '</code>' ) ?></p>
+						<h3><?php esc_html_e( 'Security notice', 'wp-svg-images' ) ?></h3>
+						<p><?php printf( /* translators: %1$s: opening <strong> tag, %2$s: closing </strong> tag, %3$s: line break. */ esc_html__( 'Every SVG image is an XML file, which can contain %1$smalicious code%2$s, that can lead to %1$sXSS or injection attacks%2$s.%3$sBelow you can decide which user roles (with upload capability) will be able to upload SVG images and also if their uploads will be sanitized.', 'wp-svg-images' ), '<strong>', '</strong>', '<br>' ) ?></p>
+						<p><?php printf( /* translators: %1$s: opening <code> tag, %2$s: closing </code> tag. The text between them is an option name and must match its translation. */ esc_html__( 'Sometimes you may need to upload some special SVG that includes your JavaScript code or other elements that are normally removed during sanitization - in that case, you can temporarily %1$senable unrestricted SVG upload%2$s if you are sure about your SVG code. Otherwise, it is recommended to use only the %1$senable sanitized SVG upload%2$s option.','wp-svg-images' ), '<code>', '</code>' ) ?> <a href="https://shortpixel.com/knowledge-base/article/524-about-sanitizing-svgs" target="_blank"><span class="dashicons dashicons-editor-help" style="text-decoration:none"></span><?php /* translators: link to an article about SVG sanitization. */ esc_html_e( 'Read more', 'wp-svg-images' ) ?></a></p>
+						<p class="notice notice-large notice-warning"><?php printf( /* translators: %1$s: opening <code> tag, %2$s: closing </code> tag. The text between them is an option name and must match its translation. */ esc_html__( 'You should %1$senable unrestricted SVG upload%2$s permanently only if you are absolutely sure that all users within this user role are responsible and experienced enough to detect malicious SVG code by themselves.', 'wp-svg-images' ), '<code>', '</code>' ) ?></p>
 					</div>
 				</div>
 
@@ -311,9 +652,9 @@ if( ! class_exists('WPSVG') ){
 
 							<table class="form-table"><?php
 								$options = array(
-									1 => esc_html__( 'enable sanitized SVG upload', 'wpsvg' ),
-									2 => esc_html__( 'enable unrestricted SVG upload', 'wpsvg' ),
-									0 => esc_html__( 'disable SVG upload', 'wpsvg' ),
+									1 => esc_html__( 'enable sanitized SVG upload', 'wp-svg-images' ),
+									2 => esc_html__( 'enable unrestricted SVG upload', 'wp-svg-images' ),
+									0 => esc_html__( 'disable SVG upload', 'wp-svg-images' ),
 								);
 								foreach( $wp_roles->roles as $role_slug => $role ){
 									$role_slug = esc_attr( $role_slug );
@@ -342,14 +683,14 @@ if( ! class_exists('WPSVG') ){
 														</option><?php
 													} ?>
 												</select>
-												<a href="https://shortpixel.com/knowledge-base/article/524-about-sanitizing-svgs" target="_blank" aria-label="<?php esc_attr_e( 'Read more', 'wpsvg' ) ?>"><span class="dashicons dashicons-editor-help" style="text-decoration:none"></span></a>
+												<a href="https://shortpixel.com/knowledge-base/article/524-about-sanitizing-svgs" target="_blank" aria-label="<?php esc_attr_e( 'Read more', 'wp-svg-images' ) ?>"><span class="dashicons dashicons-editor-help" style="text-decoration:none"></span></a>
 											</td>
 										</tr><?php
 									}
 								} ?>
 							</table>
 
-							<p class="submit"><input type="submit" class="button button-primary button-large" value="<?php _e( 'Save', 'wpsvg' ) ?>"></p>
+							<p class="submit"><input type="submit" class="button button-primary button-large" value="<?php _e( 'Save', 'wp-svg-images' ) ?>"></p>
 						</form>
 					</section>
 					<?php if( ! $this->spio_installed || ! $this->spio_active ) include_once('upsell.php') ?>
@@ -357,6 +698,31 @@ if( ! class_exists('WPSVG') ){
 			</div><?php
 		}
 
+		/**
+		 * Adds width and height to `core/image` blocks that show an SVG
+		 * attachment.
+		 *
+		 * Hooked to `render_block`. Acts only when the rendered HTML contains
+		 * neither `width=` nor `height=` and the block's `id` attribute points
+		 * to an `image/svg+xml` attachment. Dimensions come from
+		 * svg_dimensions() and are inserted into every `<img ` in the block.
+		 * When the dimensions cannot be read, `width="0" height="0"` is
+		 * inserted. The stored attachment metadata is not used.
+		 *
+		 * @todo The check for existing dimensions searches the whole block
+		 *       HTML for the text `width=` or `height=`, so a caption or
+		 *       alternative text containing either (for example "Max
+		 *       height=20") leaves the image without dimensions. Look at the
+		 *       attributes of the `<img>` element only.
+		 * @todo An SVG without readable dimensions (no size and no `viewBox`,
+		 *       and every `.svgz` file) gets `width="0" height="0"`, which
+		 *       hides the image on the page. Leave the block unchanged when
+		 *       either value is zero.
+		 *
+		 * @param string $block_content Rendered block HTML.
+		 * @param array  $block         Parsed block (`blockName`, `attrs`, ...).
+		 * @return string
+		 */
 		function fix_missing_width_height_on_image_block( $block_content, $block ){
 			if( $block['blockName'] === 'core/image' ){
 				if( strpos( $block_content, 'width=' ) === false && strpos( $block_content, 'height=' ) === false ){
@@ -370,6 +736,28 @@ if( ! class_exists('WPSVG') ){
 			return $block_content;
 		}
 
+		/**
+		 * Lets the Beaver Builder photo module accept `.svg` and `.svgz` files.
+		 *
+		 * Hooked to `fl_module_upload_regex`. For those extensions, replaces
+		 * `|png|` with `|png|svgz?|` in `$regex['photo']`; other regexes and
+		 * extensions are returned unchanged. Has no effect when the photo
+		 * regex does not contain `|png|`. Beaver Builder only decides whether
+		 * the extension suits the module; the upload still passes this
+		 * plugin's permission gate and sanitization.
+		 *
+		 * @todo Beaver Builder passes the extension as uploaded and matches
+		 *       its own list case-insensitively, but the comparison here is
+		 *       case-sensitive, so `LOGO.SVG` is refused in the photo module
+		 *       while `LOGO.PNG` is accepted. Compare against
+		 *       strtolower( $ext ).
+		 *
+		 * @param array  $regex Regexes keyed by module type.
+		 * @param string $type  Upload type (unused).
+		 * @param string $ext   File extension as uploaded, in any case.
+		 * @param array  $file  Uploaded file (unused).
+		 * @return array
+		 */
 		function fl_module_upload_regex( $regex, $type, $ext, $file ){
 			if( $ext == 'svg' || $ext == 'svgz' ){
 				$regex['photo'] = str_replace( '|png|', '|png|svgz?|', $regex['photo'] );
@@ -377,10 +765,30 @@ if( ! class_exists('WPSVG') ){
 			return $regex;
 		}
 
+		/**
+		 * Prints CSS that stretches SVG previews in the attachment details and
+		 * featured image boxes to full width.
+		 *
+		 * Hooked to `admin_footer`, on every admin page.
+		 *
+		 * @return void
+		 */
 		function fix_svg_thumbnail_size(){
 			echo '<style>.attachment-info .thumbnail img[src$=".svg"],#postimagediv .inside img[src$=".svg"]{width:100%}</style>';
 		}
 
+		/**
+		 * Stores the SVG's width and height in the attachment metadata.
+		 *
+		 * Hooked to `wp_generate_attachment_metadata`. Applies only to
+		 * `image/svg+xml` attachments; other metadata keys are kept. A plugin
+		 * that filters the metadata later can replace the values: Safe SVG,
+		 * when it loads after this plugin, stores the `viewBox` size instead.
+		 *
+		 * @param array $metadata      Attachment metadata.
+		 * @param int   $attachment_id Attachment post ID.
+		 * @return array
+		 */
 		function wp_generate_attachment_metadata( $metadata, $attachment_id ){
 			if( get_post_mime_type( $attachment_id ) == 'image/svg+xml' ){
 				$svg_path = get_attached_file( $attachment_id );
@@ -391,6 +799,35 @@ if( ! class_exists('WPSVG') ){
 			return $metadata;
 		}
 
+		/**
+		 * Forces the SVG type for `.svg` and `.svgz` file names when the
+		 * current user may upload SVGs.
+		 *
+		 * Hooked to `wp_check_filetype_and_ext` at priority 100. When any of
+		 * the current user's roles has a non-zero permission, a file name
+		 * ending in `.svg` or `.svgz` gets `ext` set accordingly and `type`
+		 * set to `image/svg+xml`, regardless of the file content and of what
+		 * WordPress detected. `proper_filename` is not touched, so it can still
+		 * hold a name WordPress proposed for the detected content (`logo.png`
+		 * for a PNG image named `logo.svg`). Other files and users are left
+		 * unchanged.
+		 *
+		 * @todo The extension check is case-sensitive, so `logo.SVG` is not
+		 *       recognised. Compare against strtolower( $filename ).
+		 * @todo An image of another type named `logo.svg` (for example a PNG)
+		 *       keeps the `proper_filename` WordPress proposed, so when an
+		 *       unrestricted role uploads it (other roles have it refused by
+		 *       wp_handle_upload_prefilter()) it is stored as `logo.png` with
+		 *       the type `image/svg+xml` and zero dimensions. Leave the detected data unchanged when WordPress
+		 *       proposes another file name, or clear `proper_filename`
+		 *       together with forcing the type.
+		 *
+		 * @param array  $filetype_ext_data `ext`, `type` and `proper_filename`.
+		 * @param string $file              Full path to the file (unused).
+		 * @param string $filename          Original file name.
+		 * @param array  $mimes             Allowed MIME types (unused).
+		 * @return array
+		 */
 		function wp_check_filetype_and_ext( $filetype_ext_data, $file, $filename, $mimes ){
 			$user = wp_get_current_user();
 			$roles = (array)$user->roles;
@@ -409,12 +846,42 @@ if( ! class_exists('WPSVG') ){
 			return $filetype_ext_data;
 		}
 
+		/**
+		 * Handles the post-activation redirect and installs the admin output
+		 * filter that adds SVG previews to Media Library templates.
+		 *
+		 * Hooked to `admin_init`, so it also runs for admin-ajax.php and
+		 * admin-post.php requests. When the `WPSVGActivated` option exists it
+		 * is deleted and a redirect header to the settings page is sent. It
+		 * then declares the global function svg_thumbs(), starts an output
+		 * buffer that passes the whole admin response through the
+		 * `final_output` filter, and registers final_output() and
+		 * wp_prepare_attachment_for_js().
+		 *
+		 * @todo The redirect is not followed by `exit`, so the rest of the
+		 *       admin request still runs and renders. Add `exit;` after
+		 *       wp_redirect().
+		 * @todo svg_thumbs() is declared as a global function inside this
+		 *       method, so a second call in the same request ends in a fatal
+		 *       "Cannot redeclare svg_thumbs()" error, and any other plugin
+		 *       defining svg_thumbs() collides with it. Use a method callback
+		 *       for ob_start().
+		 *
+		 * @return void
+		 */
 		public function add_svg_support(){
 			if( is_admin() && get_option('WPSVGActivated') ){
 				delete_option( 'WPSVGActivated' );
 				wp_redirect( admin_url( 'options-general.php?page=' . basename( __FILE__ ) ) );
 			}
 
+			/**
+			 * Output buffer callback that applies the `final_output` filter to
+			 * the buffered admin response.
+			 *
+			 * @param string $content Buffered output.
+			 * @return string
+			 */
 			function svg_thumbs( $content ){
 				return apply_filters( 'final_output', $content );
 			}
@@ -425,6 +892,26 @@ if( ! class_exists('WPSVG') ){
 			add_filter( 'wp_prepare_attachment_for_js', array( $this, 'wp_prepare_attachment_for_js' ), 10, 3 );
 		}
 
+		/**
+		 * Adds an SVG branch to the Media Library's attachment details and
+		 * attachment grid Backbone templates.
+		 *
+		 * Hooked to the plugin's own `final_output` filter. Inserts an
+		 * `'svg+xml' === data.subtype` case before the two template conditions
+		 * that render image previews, so SVGs show their file URL as preview.
+		 * Content without those exact template strings is returned unchanged,
+		 * which happens when WordPress changes the template markup.
+		 *
+		 * @todo Neither template condition exists in the media templates of
+		 *       the WordPress versions the plugin is tested with, so this
+		 *       method changes nothing there and the admin-wide output buffer
+		 *       only costs memory. WordPress shows the preview from
+		 *       `data.sizes.full`, which the stored dimensions provide. Remove
+		 *       the buffer and this method, or match the current markup.
+		 *
+		 * @param string $content Full admin page HTML.
+		 * @return string
+		 */
 		function final_output( $content ){
 			$content = str_replace(
 				'<# } else if ( \'image\' === data.type && data.sizes && data.sizes.full ) { #>',
@@ -447,6 +934,25 @@ if( ! class_exists('WPSVG') ){
 			return $content;
 		}
 
+		/**
+		 * Allows the `svg` and `svgz` extensions for users who may upload SVGs.
+		 *
+		 * Hooked to `upload_mimes`. This is the permission gate: the
+		 * extensions are added when any of the current user's roles has a
+		 * non-zero permission (sanitized or unrestricted). Users with no
+		 * matching role, including logged-out requests and WP-CLI without
+		 * `--user`, get the list unchanged. On a network the extensions are
+		 * added after WordPress has reduced the list to the network's
+		 * "Upload file types" setting, so SVG uploads do not depend on that
+		 * setting.
+		 *
+		 * @todo A super admin browsing a subsite where they have no role gets
+		 *       no SVG permission, because only roles are checked. Decide
+		 *       whether super admins are treated as administrators.
+		 *
+		 * @param array $mimes Allowed extensions => MIME types.
+		 * @return array
+		 */
 		public function add_svg_mime( $mimes = array() ){
 			$user = wp_get_current_user();
 			$roles = (array)$user->roles;
@@ -460,6 +966,24 @@ if( ! class_exists('WPSVG') ){
 			return $mimes;
 		}
 
+		/**
+		 * Gives SVG attachments a `full` size entry for the Media Library.
+		 *
+		 * Hooked to `wp_prepare_attachment_for_js` by add_svg_support(), so
+		 * only in admin requests. Applies only when the MIME type is
+		 * `image/svg+xml` and `sizes` is empty; WordPress already builds the
+		 * `full` size from the width and height in the attachment metadata, so
+		 * this covers attachments without metadata. Dimensions are read from
+		 * the attached file, or from the attachment URL when the file does not
+		 * exist locally (offloaded media), which makes a remote request
+		 * through libxml. Orientation is `landscape` when width > height and
+		 * `portrait` otherwise, including for square images.
+		 *
+		 * @param array    $response   Attachment data for JS.
+		 * @param \WP_Post $attachment Attachment post.
+		 * @param array    $meta       Attachment metadata (unused).
+		 * @return array
+		 */
 		function wp_prepare_attachment_for_js( $response, $attachment, $meta ){
 			if( $response['mime'] == 'image/svg+xml' && empty( $response['sizes'] ) ){
 				$svg_path = get_attached_file( $attachment->ID );
@@ -479,6 +1003,29 @@ if( ! class_exists('WPSVG') ){
 			return $response;
 		}
 
+		/**
+		 * Reads the intrinsic width and height of an SVG.
+		 *
+		 * Uses the root `width` and `height` attributes when both are present
+		 * and not percentages, parsed with floatval() so units are dropped
+		 * (`10em` gives 10). When either value is still zero and a `viewBox`
+		 * exists, both are taken from its third and fourth values. Returns
+		 * zeros when the file cannot be read or parsed; PHP warnings are then
+		 * raised by simplexml_load_file() unless libxml internal errors are
+		 * enabled. The root element does not have to be `<svg>`, a negative
+		 * value is returned as it is, and a `width` without a `height` (or the
+		 * reverse) is ignored.
+		 *
+		 * @todo The `viewBox` is split on single spaces only, so a viewBox
+		 *       using commas or repeated whitespace (both valid) yields wrong
+		 *       or zero dimensions. Split on preg_split( '/[\s,]+/', trim( ... ) ).
+		 * @todo A gzipped file (`.svgz`) is not decoded, so its dimensions are
+		 *       always zero. Decode gzip content (see is_gzipped()) and parse
+		 *       it with simplexml_load_string().
+		 *
+		 * @param string $svg Path or URL of the SVG file.
+		 * @return object{width: float|int, height: float|int}
+		 */
 		function svg_dimensions( $svg ){
 			$svg = simplexml_load_file( $svg );
 			$width = 0;
@@ -505,6 +1052,7 @@ if( ! class_exists('WPSVG') ){
 		}
 	}
 
+	// Flag picked up by WPSVG::add_svg_support() to redirect to the settings page once.
 	register_activation_hook( __FILE__, function(){
 		add_option( 'WPSVGActivated', 1 );
 	});

@@ -1,0 +1,69 @@
+# Release gate, browser part: the `e2e` suite on the oldest and the newest
+# supported cell, through the same bin/test.sh used locally (zero-test guard
+# included). No retries: a flaky test is a red test.
+name: Browser tests
+
+# Same triggers as tests.yml: every push to `updates`, every pull request into
+# `updates` or `main`, and by hand from the Actions tab (workflow_dispatch).
+on:
+  push:
+    branches: [updates]
+  pull_request:
+    branches: [updates, main]
+  workflow_dispatch:
+
+# Pull requests: one group per pull request, so a newer push cancels the stale
+# run. Pushes and manual runs: a unique group per run, so every commit on
+# `updates` keeps its own verdict.
+concurrency:
+  group: e2e-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: PHP ${{ matrix.php }} / WP ${{ matrix.wp }}
+    # Skips pull_request runs whose source branch is `updates` in this
+    # repository (the release pull request into `main`): the push to `updates`
+    # has already tested that exact commit. GitHub reports a job skipped by
+    # `if` as passing, so it never blocks the pull request.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'updates' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { php: '7.4', wp: '6.4' }
+          - { php: '8.5', wp: latest }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run the browser tests
+        run: bin/test.sh e2e --php '${{ matrix.php }}' --wp '${{ matrix.wp }}'
+
+      - name: Executed test counts
+        if: always()
+        run: |
+          {
+            echo "### Browser tests, PHP ${{ matrix.php }} / WP ${{ matrix.wp }}"
+            echo
+            f=tests/.results/e2e.summary
+            if [ -f "$f" ]; then
+              v() { sed -n "s/^$1=//p" "$f"; }
+              echo "| Tests | Failures | Errors | Skipped |"
+              echo "|---:|---:|---:|---:|"
+              echo "| $(v tests) | $(v failures) | $(v errors) | $(v skipped) |"
+            else
+              echo "The suite produced no report."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload report, screenshots and traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-php${{ matrix.php }}-wp${{ matrix.wp }}
+          path: tests/.results/
+          if-no-files-found: warn

@@ -1,6 +1,11 @@
 <?php
 namespace enshrined\svgSanitize\ElementReference;
 
+/**
+ * A reference to a Subject together with how many times it occurs.
+ *
+ * @package enshrined\svgSanitize\ElementReference
+ */
 class Usage
 {
     /**
@@ -24,6 +29,8 @@ class Usage
     }
 
     /**
+     * Adds $by (cast to int) to the count.
+     *
      * @param int $by
      */
     public function increment($by = 1)
@@ -32,6 +39,8 @@ class Usage
     }
 
     /**
+     * Returns the referenced subject.
+     *
      * @return Subject
      */
     public function getSubject()
@@ -40,6 +49,8 @@ class Usage
     }
 
     /**
+     * Returns how many times the subject is referenced.
+     *
      * @return int
      */
     public function getCount()

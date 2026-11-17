@@ -9,7 +9,15 @@ use enshrined\svgSanitize\data\XPath;
 use enshrined\svgSanitize\ElementReference\Resolver;
 
 /**
- * Class Sanitizer
+ * Whitelist-based SVG sanitizer (bundled copy of enshrined/svg-sanitize).
+ *
+ * Parses the input with DOMDocument, removes elements and attributes that are
+ * not whitelisted, unsafe hrefs, non-element nodes such as comments and
+ * processing instructions, `<font>` elements that break out of foreign
+ * content, and `<use>` elements that reference external resources, form
+ * loops, nest too deeply or expand beyond the use threshold. Everything
+ * removed is recorded in getXmlIssues(). CDATA sections become plain text
+ * (see cleanUnsafeNodes()).
  *
  * @package enshrined\svgSanitize
  */
@@ -77,7 +85,7 @@ class Sanitizer
     protected $useNestingLimit = 15;
 
     /**
-     *
+     * Loads the default tag and attribute whitelists, lower-cased.
      */
     function __construct()
     {
@@ -162,6 +170,11 @@ class Sanitizer
     /**
      * Should we remove references to remote files?
      *
+     * When enabled, an attribute whose whole value is a quoted `url(...)`
+     * pointing to an http, https, ftp, file or protocol-relative address is
+     * removed. `href` attributes, `style` attributes and the content of
+     * `<style>` elements are not examined.
+     *
      * @param bool $removeRemoteRefs
      */
     public function removeRemoteReferences($removeRemoteRefs = false)
@@ -182,8 +195,29 @@ class Sanitizer
     /**
      * Sanitize the passed string
      *
+     * PHP tags (`<?php ... ?>`, `<?= ... ?>`) written on one line are
+     * stripped before parsing; a PHP tag that spans several lines is removed
+     * later as a processing instruction. Empty input (including "0") returns
+     * an empty string without resetting getXmlIssues(). The output keeps
+     * the XML declaration unless removeXMLTag() is enabled, and has every
+     * whitespace run collapsed to one space when minify() is enabled.
+     *
      * @param string $dirty
-     * @return string|false
+     * @return string|false Sanitized XML, or false when the input is not
+     *                      well-formed XML.
+     * @throws \LogicException When the document's root is not a single
+     *                         `<svg>` element (see XPath), and in the case
+     *                         described on Resolver::processReferences().
+     *
+     * @todo A document whose root is a prefixed `<x:svg>` passes the root
+     *       check, then has its root removed because `x:svg` is not on the
+     *       whitelist: the method returns an XML declaration and nothing
+     *       else, even with removeXMLTag() enabled, instead of failing.
+     *       Suggested fix: return false when no root element is left.
+     * @todo An entity reference inside an attribute value (`width="&x;"`) is
+     *       kept while the DOCTYPE that declares the entity is removed, so
+     *       the output is not well-formed XML. Suggested fix: remove
+     *       attributes that contain entity references.
      */
     public function sanitize($dirty)
     {
@@ -235,6 +269,12 @@ class Sanitizer
 
     /**
      * Set up libXML before we start
+     *
+     * @todo libxml_use_internal_errors(true) is never undone: after
+     *       sanitize() the setting stays enabled for the rest of the request
+     *       and the collected errors are never cleared. Suggested fix:
+     *       remember the previous value here and restore it, after
+     *       libxml_clear_errors(), in resetAfter().
      */
     protected function setUpBefore()
     {
@@ -270,6 +310,15 @@ class Sanitizer
      *
      * @param \DOMNodeList $elements
      * @param array        $elementsToRemove
+     *
+     * @todo The in_array() check against $elementsToRemove is not strict, and
+     *       any two DOMElement objects compare equal, so as soon as the list
+     *       has one entry every `<use>` in the document is removed, valid
+     *       ones included. A strict check alone would remove nothing: the
+     *       list holds the referenced elements, which are rarely `<use>`
+     *       elements themselves. Suggested fix: have the Resolver list the
+     *       `<use>` elements that take part in a loop or exceed the nesting
+     *       limit, then compare strictly here.
      */
     protected function startClean(\DOMNodeList $elements, array $elementsToRemove)
     {
@@ -361,6 +410,16 @@ class Sanitizer
      * Only allow attributes that are on the whitelist
      *
      * @param \DOMElement $element
+     *
+     * @todo Attributes are read and removed by local name without their
+     *       namespace, which misses every attribute that has a namespace.
+     *       A prefixed attribute that is not on the whitelist
+     *       (`xlink:actuate`, `x:onload`) is reported in getXmlIssues() but
+     *       stays in the output, and `xlink:href="javascript:..."` is kept
+     *       untouched when the `xlink` prefix is bound to a namespace other
+     *       than XLink. An HTML parser treats that attribute as a real XLink
+     *       href when the SVG is inlined in a page. Suggested fix: use the
+     *       attribute node itself (nodeName, value, removeAttributeNode()).
      */
     protected function cleanAttributesOnWhitelist(\DOMElement $element)
     {
@@ -507,7 +566,7 @@ class Sanitizer
      * Removes non-printable ASCII characters from string & trims it
      *
      * @param string $value
-     * @return bool
+     * @return string
      */
     protected function removeNonPrintableCharacters($value)
     {
@@ -517,8 +576,14 @@ class Sanitizer
     /**
      * Does this attribute value have a remote reference?
      *
+     * Only a value that is a single `url(...)` is examined.
+     *
      * @param $value
      * @return bool
+     *
+     * @todo The pattern requires quotes inside `url()`, so the unquoted form
+     *       `url(http://example.com/x)` is not recognised as remote.
+     *       Suggested fix: make the quotes optional.
      */
     protected function hasRemoteReference($value)
     {
@@ -629,9 +694,10 @@ class Sanitizer
     }
 
     /**
-     * Set the nesting limit for <use> tags.
+     * Set the nesting limit for <use> tags (default 15). Takes effect on the
+     * next sanitize() call.
      *
-     * @param $limit
+     * @param int $limit
      */
     public function setUseNestingLimit($limit)
     {
@@ -640,6 +706,11 @@ class Sanitizer
 
     /**
      * Remove nodes that are either invalid or malformed.
+     *
+     * A CDATA section is replaced with a text node holding its content
+     * unchanged, so `<`, `>` and `&` in it are escaped once on output and
+     * markup in it stays text. Other nodes that are neither elements nor
+     * text are removed and recorded as issues.
      *
      * @param \DOMNode $currentElement The current element.
      */
