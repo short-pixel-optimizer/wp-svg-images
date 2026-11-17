@@ -142,7 +142,7 @@ class WPSVGTest extends WPSVGTestCase {
 	public function test_plugins_loaded_loads_the_text_domain_from_the_languages_folder() {
 		Functions\expect( 'load_plugin_textdomain' )
 			->once()
-			->with( 'wpsvg', false, basename( WPSVG_TESTS_PLUGIN_DIR ) . '/languages/' );
+			->with( 'wp-svg-images', false, basename( WPSVG_TESTS_PLUGIN_DIR ) . '/languages/' );
 
 		$this->plugin()->plugins_loaded();
 	}
@@ -174,7 +174,7 @@ class WPSVGTest extends WPSVGTestCase {
 	public function test_filter_plugin_actions_translates_the_label_in_the_plugin_text_domain() {
 		Functions\when( '__' )->alias(
 			function ( $text, $domain ) {
-				return 'Settings' === $text && 'wpsvg' === $domain ? 'Einstellungen' : "untranslated: $text";
+				return 'Settings' === $text && 'wp-svg-images' === $domain ? 'Einstellungen' : "untranslated: $text";
 			}
 		);
 

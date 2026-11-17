@@ -47,7 +47,7 @@ browser suite `e2e` needs the web stack and runs only when named;
 | `compat` | implemented | The plugin next to real third-party plugins and libraries, one run per scenario | `tests/phpunit/compat.xml`, `tests/bootstrap/compat.php`, `tests/compat/scenarios.php` |
 | `multisite` | implemented | WordPress installed as a network, the plugin network-activated | `tests/phpunit/multisite.xml`, `tests/bootstrap/multisite.php` |
 | `cli` | implemented | WP-CLI commands against a freshly installed site: activation, imports with and without `--user`, removal | `tests/phpunit/cli.xml`, `tests/bootstrap/cli.php`, `tests/bootstrap/wp-cli-config.php` |
-| `l10n` | implemented | Text domain loading with a generated translation; `languages/wpsvg.pot` against the sources | `tests/phpunit/l10n.xml`, bootstrap of `integration` |
+| `l10n` | implemented | Text domain loading with a generated translation; `languages/wp-svg-images.pot` against the sources | `tests/phpunit/l10n.xml`, bootstrap of `integration` |
 | `e2e` | implemented, opt-in | Chromium against a running site: real logins, clicks and HTTP uploads | `tests/e2e/playwright.config.js`, `tests/e2e/site/` |
 
 ### The `compat` suite
@@ -126,10 +126,14 @@ assertions look at exit code, output, and the files and rows the command left.
 ### The `l10n` suite
 
 - **`TemplateTest`** compares the translatable strings in the PHP sources with
-  `languages/wpsvg.pot`. `tests/l10n/TranslatableStrings.php` extracts both
+  `languages/wp-svg-images.pot`. `tests/l10n/TranslatableStrings.php` extracts both
   sides with PHP's tokenizer; add new source files to `TemplateTest::SOURCES`.
 - **`TextDomainTest`** switches the site to the locale `xx_XX` and answers the
-  translation file WordPress asks for with one generated during the test.
+  translation file WordPress asks for with one generated during the test. The
+  language pack test writes a real file to `WP_LANG_DIR/plugins` and clears
+  WordPress's cached list of that folder. Between tests the domain is unloaded
+  without the "reloadable" flag: since WordPress 6.5 a reloadable unload keeps
+  the loaded files, and they would answer in the next test.
 
 ### The `e2e` suite
 

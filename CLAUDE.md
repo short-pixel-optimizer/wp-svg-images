@@ -14,7 +14,9 @@ SVG previews in the Media Library and the image block.
   `readme.txt` (keep them equal).
 - Declared WordPress / PHP requirements: `readme.txt` header.
 - Tested version matrix: `docs/TESTING-PLAN.md` §3.3.
-- Text domain: `wpsvg`; template: `languages/wpsvg.pot`.
+- Text domain: `wp-svg-images` (the wordpress.org slug, so language packs
+  apply); template: `languages/wp-svg-images.pot`, regenerated with
+  `wp i18n make-pot`.
 
 ## Build and dependencies
 

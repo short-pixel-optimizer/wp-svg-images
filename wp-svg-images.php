@@ -8,7 +8,7 @@
 	Author URI:		https://shortpixel.com/
  	GitHub Plugin URI:	https://github.com/short-pixel-optimizer/wp-svg-images
 	Primary Branch: 	main
-	Text Domain:		wpsvg
+	Text Domain:		wp-svg-images
 	Domain Path:		/languages
 */
 
@@ -259,9 +259,9 @@ if( ! class_exists('WPSVG') ){
 			if( ! get_user_meta( get_current_user_id(), 'wpsvg_notice_dismissed' ) ){
 				if( function_exists('get_current_screen') && isset( get_current_screen()->id ) && in_array( get_current_screen()->id, array( 'plugins', 'plugin-install', 'upload', 'attachment' ) ) ){ ?>
 					<div class="wpsvg-notice notice notice-success is-dismissible">
-						<p><?php printf( /* translators: %s: link to the plugin settings page, with the text "Settings page". */ esc_html__( 'Hey, WP SVG Images has some new settings! Activate SVG sanitization and manage permissions by going to the new %s.', 'wpsvg' ), '<a href="' . admin_url('options-general.php?page=wp-svg-images.php') . '">' . /* translators: link text that completes the sentence "...by going to the new %s." */ esc_html__( 'Settings page', 'wpsvg' ) . '</a>' ) ?></p>
-						<p><small style="opacity:.9"><?php printf( /* translators: %s: link to the ShortPixel website, with the text "ShortPixel". */ esc_html__( 'WP SVG Images is now a part of the %s family.', 'wpsvg' ), '<a href="https://shortpixel.com/api-tools" target="_blank">ShortPixel</a>' ) ?></small></p>
-						<p><a href="<?php echo admin_url('options-general.php?page=wp-svg-images.php') ?>" class="button button-primary"><?php /* translators: button label. */ esc_html_e( 'Go to Settings', 'wpsvg' ) ?></a></p>
+						<p><?php printf( /* translators: %s: link to the plugin settings page, with the text "Settings page". */ esc_html__( 'Hey, WP SVG Images has some new settings! Activate SVG sanitization and manage permissions by going to the new %s.', 'wp-svg-images' ), '<a href="' . admin_url('options-general.php?page=wp-svg-images.php') . '">' . /* translators: link text that completes the sentence "...by going to the new %s." */ esc_html__( 'Settings page', 'wp-svg-images' ) . '</a>' ) ?></p>
+						<p><small style="opacity:.9"><?php printf( /* translators: %s: link to the ShortPixel website, with the text "ShortPixel". */ esc_html__( 'WP SVG Images is now a part of the %s family.', 'wp-svg-images' ), '<a href="https://shortpixel.com/api-tools" target="_blank">ShortPixel</a>' ) ?></small></p>
+						<p><a href="<?php echo admin_url('options-general.php?page=wp-svg-images.php') ?>" class="button button-primary"><?php /* translators: button label. */ esc_html_e( 'Go to Settings', 'wp-svg-images' ) ?></a></p>
 					</div>
 					<script>
 					jQuery(document).ready(function($){
@@ -318,7 +318,7 @@ if( ! class_exists('WPSVG') ){
 			// Security:  form data can be faked, including the filetype. Check tmpfile.
 			if ( ! isset($file['tmp_name']) || ! is_string($file['tmp_name']))
 			{
-				$file['error'] = __( 'Temp file is not set!', 'wpsvg' );
+				$file['error'] = __( 'Temp file is not set!', 'wp-svg-images' );
 				return $file; 
 			}
 
@@ -342,7 +342,7 @@ if( ! class_exists('WPSVG') ){
 				}
 
 				if( ! $unrestricted && ! $this->sanitize( $file['tmp_name'] ) ){
-					$file['error'] = __( 'This SVG cannot be sanitized!', 'wpsvg' );
+					$file['error'] = __( 'This SVG cannot be sanitized!', 'wp-svg-images' );
 				}
 			}
 			return $file;
@@ -508,17 +508,22 @@ if( ! class_exists('WPSVG') ){
 		}
 
 		/**
-		 * Loads the `wpsvg` text domain from the plugin's `languages` folder.
+		 * Loads the `wp-svg-images` text domain, with the plugin's `languages`
+		 * folder as a fallback location.
 		 *
-		 * Hooked to `plugins_loaded`. WordPress looks for
-		 * `languages/wpsvg-<locale>.mo`; the plugin ships the template
-		 * `languages/wpsvg.pot` only, so translations come from files a site
-		 * owner adds there or from a language pack.
+		 * Hooked to `plugins_loaded`. From WordPress 6.7 the call only records
+		 * the folder and the file is loaded on the first translated string;
+		 * before 6.7 it is loaded at once. The text domain equals the plugin's
+		 * wordpress.org slug, so language packs from translate.wordpress.org
+		 * apply. WordPress uses `wp-svg-images-<locale>.mo` from
+		 * `WP_LANG_DIR/plugins` (where language packs are installed) when it
+		 * exists, and otherwise looks in the plugin's `languages` folder. The
+		 * plugin ships the template `languages/wp-svg-images.pot` only.
 		 *
 		 * @return void
 		 */
 		function plugins_loaded(){
-			load_plugin_textdomain( 'wpsvg', FALSE, basename( __DIR__ ) . '/languages/' );
+			load_plugin_textdomain( 'wp-svg-images', FALSE, basename( __DIR__ ) . '/languages/' );
 		}
 
 		/**
@@ -533,8 +538,8 @@ if( ! class_exists('WPSVG') ){
 		function plugin_menu_link(){
 			$this->plugin_admin_page = add_submenu_page(
 				'options-general.php',
-				__( 'SVG images', 'wpsvg' ),
-				__( 'SVG images', 'wpsvg' ),
+				__( 'SVG images', 'wp-svg-images' ),
+				__( 'SVG images', 'wp-svg-images' ),
 				'manage_options',
 				basename( __FILE__ ),
 				array( $this, 'admin_options_page' )
@@ -552,7 +557,7 @@ if( ! class_exists('WPSVG') ){
 		 * @return array
 		 */
 		function filter_plugin_actions( $links, $file ){
-			array_unshift( $links, '<a href="options-general.php?page=' . basename( __FILE__ ) . '">' . __( 'Settings', 'wpsvg' ) . '</a>' );
+			array_unshift( $links, '<a href="options-general.php?page=' . basename( __FILE__ ) . '">' . __( 'Settings', 'wp-svg-images' ) . '</a>' );
 			return $links;
 		}
 
@@ -626,16 +631,16 @@ if( ! class_exists('WPSVG') ){
 				}
 			} ?>
 			<div class="wrap">
-				<h2><?php _e( 'SVG images', 'wpsvg' ) ?></h2>
+				<h2><?php _e( 'SVG images', 'wp-svg-images' ) ?></h2>
 
-				<?php if( $show_update_notice ) echo '<div class="below-h2 updated"><p>' . __( 'Settings saved.', 'wpsvg' ) . '</p></div>'; ?>
+				<?php if( $show_update_notice ) echo '<div class="below-h2 updated"><p>' . __( 'Settings saved.', 'wp-svg-images' ) . '</p></div>'; ?>
 
 				<div class="postbox" style="margin-top:10px">
 					<div class="inside" style="padding-bottom:2px">
-						<h3><?php esc_html_e( 'Security notice', 'wpsvg' ) ?></h3>
-						<p><?php printf( /* translators: %1$s: opening <strong> tag, %2$s: closing </strong> tag, %3$s: line break. */ esc_html__( 'Every SVG image is an XML file, which can contain %1$smalicious code%2$s, that can lead to %1$sXSS or injection attacks%2$s.%3$sBelow you can decide which user roles (with upload capability) will be able to upload SVG images and also if their uploads will be sanitized.', 'wpsvg' ), '<strong>', '</strong>', '<br>' ) ?></p>
-						<p><?php printf( /* translators: %1$s: opening <code> tag, %2$s: closing </code> tag. The text between them is an option name and must match its translation. */ esc_html__( 'Sometimes you may need to upload some special SVG that includes your JavaScript code or other elements that are normally removed during sanitization - in that case, you can temporarily %1$senable unrestricted SVG upload%2$s if you are sure about your SVG code. Otherwise, it is recommended to use only the %1$senable sanitized SVG upload%2$s option.','wpsvg' ), '<code>', '</code>' ) ?> <a href="https://shortpixel.com/knowledge-base/article/524-about-sanitizing-svgs" target="_blank"><span class="dashicons dashicons-editor-help" style="text-decoration:none"></span><?php /* translators: link to an article about SVG sanitization. */ esc_html_e( 'Read more', 'wpsvg' ) ?></a></p>
-						<p class="notice notice-large notice-warning"><?php printf( /* translators: %1$s: opening <code> tag, %2$s: closing </code> tag. The text between them is an option name and must match its translation. */ esc_html__( 'You should %1$senable unrestricted SVG upload%2$s permanently only if you are absolutely sure that all users within this user role are responsible and experienced enough to detect malicious SVG code by themselves.', 'wpsvg' ), '<code>', '</code>' ) ?></p>
+						<h3><?php esc_html_e( 'Security notice', 'wp-svg-images' ) ?></h3>
+						<p><?php printf( /* translators: %1$s: opening <strong> tag, %2$s: closing </strong> tag, %3$s: line break. */ esc_html__( 'Every SVG image is an XML file, which can contain %1$smalicious code%2$s, that can lead to %1$sXSS or injection attacks%2$s.%3$sBelow you can decide which user roles (with upload capability) will be able to upload SVG images and also if their uploads will be sanitized.', 'wp-svg-images' ), '<strong>', '</strong>', '<br>' ) ?></p>
+						<p><?php printf( /* translators: %1$s: opening <code> tag, %2$s: closing </code> tag. The text between them is an option name and must match its translation. */ esc_html__( 'Sometimes you may need to upload some special SVG that includes your JavaScript code or other elements that are normally removed during sanitization - in that case, you can temporarily %1$senable unrestricted SVG upload%2$s if you are sure about your SVG code. Otherwise, it is recommended to use only the %1$senable sanitized SVG upload%2$s option.','wp-svg-images' ), '<code>', '</code>' ) ?> <a href="https://shortpixel.com/knowledge-base/article/524-about-sanitizing-svgs" target="_blank"><span class="dashicons dashicons-editor-help" style="text-decoration:none"></span><?php /* translators: link to an article about SVG sanitization. */ esc_html_e( 'Read more', 'wp-svg-images' ) ?></a></p>
+						<p class="notice notice-large notice-warning"><?php printf( /* translators: %1$s: opening <code> tag, %2$s: closing </code> tag. The text between them is an option name and must match its translation. */ esc_html__( 'You should %1$senable unrestricted SVG upload%2$s permanently only if you are absolutely sure that all users within this user role are responsible and experienced enough to detect malicious SVG code by themselves.', 'wp-svg-images' ), '<code>', '</code>' ) ?></p>
 					</div>
 				</div>
 
@@ -647,9 +652,9 @@ if( ! class_exists('WPSVG') ){
 
 							<table class="form-table"><?php
 								$options = array(
-									1 => esc_html__( 'enable sanitized SVG upload', 'wpsvg' ),
-									2 => esc_html__( 'enable unrestricted SVG upload', 'wpsvg' ),
-									0 => esc_html__( 'disable SVG upload', 'wpsvg' ),
+									1 => esc_html__( 'enable sanitized SVG upload', 'wp-svg-images' ),
+									2 => esc_html__( 'enable unrestricted SVG upload', 'wp-svg-images' ),
+									0 => esc_html__( 'disable SVG upload', 'wp-svg-images' ),
 								);
 								foreach( $wp_roles->roles as $role_slug => $role ){
 									$role_slug = esc_attr( $role_slug );
@@ -678,14 +683,14 @@ if( ! class_exists('WPSVG') ){
 														</option><?php
 													} ?>
 												</select>
-												<a href="https://shortpixel.com/knowledge-base/article/524-about-sanitizing-svgs" target="_blank" aria-label="<?php esc_attr_e( 'Read more', 'wpsvg' ) ?>"><span class="dashicons dashicons-editor-help" style="text-decoration:none"></span></a>
+												<a href="https://shortpixel.com/knowledge-base/article/524-about-sanitizing-svgs" target="_blank" aria-label="<?php esc_attr_e( 'Read more', 'wp-svg-images' ) ?>"><span class="dashicons dashicons-editor-help" style="text-decoration:none"></span></a>
 											</td>
 										</tr><?php
 									}
 								} ?>
 							</table>
 
-							<p class="submit"><input type="submit" class="button button-primary button-large" value="<?php _e( 'Save', 'wpsvg' ) ?>"></p>
+							<p class="submit"><input type="submit" class="button button-primary button-large" value="<?php _e( 'Save', 'wp-svg-images' ) ?>"></p>
 						</form>
 					</section>
 					<?php if( ! $this->spio_installed || ! $this->spio_active ) include_once('upsell.php') ?>

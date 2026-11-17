@@ -9,10 +9,10 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-11-16T21:13:06+00:00\n"
+"POT-Creation-Date: 2026-11-17T09:11:33+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
-"X-Domain: wpsvg\n"
+"X-Domain: wp-svg-images\n"
 
 #. Plugin Name of the plugin
 #: wp-svg-images.php
@@ -35,118 +35,118 @@ msgstr ""
 msgid "ShortPixel"
 msgstr ""
 
-#: upsell.php:10
+#: upsell.php:28
 msgid "ShortPixel Image Optimizer"
 msgstr ""
 
-#: upsell.php:13
+#: upsell.php:31
 msgid "Is your website slow?"
 msgstr ""
 
-#: upsell.php:17
+#: upsell.php:35
 msgid "Optimize all images automatically"
 msgstr ""
 
-#: upsell.php:20
+#: upsell.php:38
 msgid "Installing..."
 msgstr ""
 
-#: upsell.php:21
+#: upsell.php:39
 msgid "Install now"
 msgstr ""
 
-#: upsell.php:24
+#: upsell.php:42
 msgid "Activate"
 msgstr ""
 
-#: upsell.php:28
+#: upsell.php:46
 msgid "ShortPixel activated!"
 msgstr ""
 
 #. translators: %s: link to the plugin settings page, with the text "Settings page".
-#: wp-svg-images.php:109
+#: wp-svg-images.php:262
 #, php-format
 msgid "Hey, WP SVG Images has some new settings! Activate SVG sanitization and manage permissions by going to the new %s."
 msgstr ""
 
 #. translators: link text that completes the sentence "...by going to the new %s."
-#: wp-svg-images.php:109
+#: wp-svg-images.php:262
 msgid "Settings page"
 msgstr ""
 
 #. translators: %s: link to the ShortPixel website, with the text "ShortPixel".
-#: wp-svg-images.php:110
+#: wp-svg-images.php:263
 #, php-format
 msgid "WP SVG Images is now a part of the %s family."
 msgstr ""
 
 #. translators: button label.
-#: wp-svg-images.php:111
+#: wp-svg-images.php:264
 msgid "Go to Settings"
 msgstr ""
 
-#: wp-svg-images.php:129
+#: wp-svg-images.php:321
 msgid "Temp file is not set!"
 msgstr ""
 
-#: wp-svg-images.php:153
+#: wp-svg-images.php:345
 msgid "This SVG cannot be sanitized!"
 msgstr ""
 
-#: wp-svg-images.php:254
-#: wp-svg-images.php:255
-#: wp-svg-images.php:293
+#: wp-svg-images.php:541
+#: wp-svg-images.php:542
+#: wp-svg-images.php:634
 msgid "SVG images"
 msgstr ""
 
-#: wp-svg-images.php:264
+#: wp-svg-images.php:560
 msgid "Settings"
 msgstr ""
 
-#: wp-svg-images.php:295
+#: wp-svg-images.php:636
 msgid "Settings saved."
 msgstr ""
 
-#: wp-svg-images.php:299
+#: wp-svg-images.php:640
 msgid "Security notice"
 msgstr ""
 
 #. translators: %1$s: opening <strong> tag, %2$s: closing </strong> tag, %3$s: line break.
-#: wp-svg-images.php:300
+#: wp-svg-images.php:641
 #, php-format
 msgid "Every SVG image is an XML file, which can contain %1$smalicious code%2$s, that can lead to %1$sXSS or injection attacks%2$s.%3$sBelow you can decide which user roles (with upload capability) will be able to upload SVG images and also if their uploads will be sanitized."
 msgstr ""
 
 #. translators: %1$s: opening <code> tag, %2$s: closing </code> tag. The text between them is an option name and must match its translation.
-#: wp-svg-images.php:301
+#: wp-svg-images.php:642
 #, php-format
 msgid "Sometimes you may need to upload some special SVG that includes your JavaScript code or other elements that are normally removed during sanitization - in that case, you can temporarily %1$senable unrestricted SVG upload%2$s if you are sure about your SVG code. Otherwise, it is recommended to use only the %1$senable sanitized SVG upload%2$s option."
 msgstr ""
 
 #. translators: link to an article about SVG sanitization.
-#: wp-svg-images.php:301
-#: wp-svg-images.php:345
+#: wp-svg-images.php:642
+#: wp-svg-images.php:686
 msgid "Read more"
 msgstr ""
 
 #. translators: %1$s: opening <code> tag, %2$s: closing </code> tag. The text between them is an option name and must match its translation.
-#: wp-svg-images.php:302
+#: wp-svg-images.php:643
 #, php-format
 msgid "You should %1$senable unrestricted SVG upload%2$s permanently only if you are absolutely sure that all users within this user role are responsible and experienced enough to detect malicious SVG code by themselves."
 msgstr ""
 
-#: wp-svg-images.php:314
+#: wp-svg-images.php:655
 msgid "enable sanitized SVG upload"
 msgstr ""
 
-#: wp-svg-images.php:315
+#: wp-svg-images.php:656
 msgid "enable unrestricted SVG upload"
 msgstr ""
 
-#: wp-svg-images.php:316
+#: wp-svg-images.php:657
 msgid "disable SVG upload"
 msgstr ""
 
-#: wp-svg-images.php:352
+#: wp-svg-images.php:693
 msgid "Save"
 msgstr ""

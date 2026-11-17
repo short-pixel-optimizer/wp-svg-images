@@ -13,6 +13,9 @@ class TextDomainTest extends WPSVGIntegrationTestCase {
 
 	const LOCALE = 'xx_XX';
 
+	/** The plugin's text domain, which is its wordpress.org slug. */
+	const DOMAIN = 'wp-svg-images';
+
 	/**
 	 * Translation files WordPress asked for, as "domain path".
 	 *
@@ -28,12 +31,13 @@ class TextDomainTest extends WPSVGIntegrationTestCase {
 	private $generated_files = array();
 
 	public function tear_down() {
-		unload_textdomain( 'wpsvg', true );
+		$this->unload_translations();
 		// WordPress remembers the folder a translation was loaded from, which
 		// here is the temporary folder of the generated file.
 		$GLOBALS['wp_textdomain_registry'] = new WP_Textdomain_Registry();
 		array_map( 'unlink', array_filter( $this->generated_files, 'file_exists' ) );
 		$this->generated_files = array();
+		$this->forget_language_pack_listing();
 		$this->plugin()->spio_installed    = false;
 		$this->plugin()->spio_active       = false;
 		$this->plugin()->plugin_admin_page = null;
@@ -44,7 +48,54 @@ class TextDomainTest extends WPSVGIntegrationTestCase {
 	 * @return string The file WordPress has to look for.
 	 */
 	private function expected_file() {
-		return WP_PLUGIN_DIR . '/wp-svg-images/languages/wpsvg-' . self::LOCALE . '.mo';
+		return WP_PLUGIN_DIR . '/wp-svg-images/languages/' . self::DOMAIN . '-' . self::LOCALE . '.mo';
+	}
+
+	/**
+	 * @return string Where WordPress installs a language pack for the plugin.
+	 */
+	private function language_pack_file() {
+		return WP_LANG_DIR . '/plugins/' . self::DOMAIN . '-' . self::LOCALE . '.mo';
+	}
+
+	/**
+	 * Drops every translation file loaded for the plugin and allows the
+	 * domain to load again. A reloadable unload_textdomain() keeps the files
+	 * in the translation controller (WordPress 6.5 and later), so a file
+	 * loaded by one test would still answer in the next one.
+	 */
+	private function unload_translations() {
+		unload_textdomain( self::DOMAIN );
+		unset( $GLOBALS['l10n_unloaded'][ self::DOMAIN ] );
+	}
+
+	/**
+	 * WordPress caches the list of language packs for an hour and clears it
+	 * when it installs one; do the same when the test adds or removes one.
+	 */
+	private function forget_language_pack_listing() {
+		wp_cache_delete( md5( WP_LANG_DIR . '/plugins/' ), 'translation_files' );
+	}
+
+	/**
+	 * Writes a translation file.
+	 *
+	 * @param array  $translations Original => translation.
+	 * @param string $path         Where to write it; deleted after the test.
+	 */
+	private function write_mo( array $translations, $path ) {
+		require_once ABSPATH . WPINC . '/pomo/mo.php';
+		$mo = new MO();
+		foreach ( $translations as $original => $translation ) {
+			$mo->add_entry(
+				array(
+					'singular'     => $original,
+					'translations' => array( $translation ),
+				)
+			);
+		}
+		$mo->export_to_file( $path );
+		$this->generated_files[] = $path;
 	}
 
 	/**
@@ -57,20 +108,9 @@ class TextDomainTest extends WPSVGIntegrationTestCase {
 	private function use_test_locale( array $translations = array() ) {
 		$replacement = null;
 		if ( $translations ) {
-			require_once ABSPATH . WPINC . '/pomo/mo.php';
-			$mo = new MO();
-			foreach ( $translations as $original => $translation ) {
-				$mo->add_entry(
-					array(
-						'singular'     => $original,
-						'translations' => array( $translation ),
-					)
-				);
-			}
 			// WordPress picks the file reader by extension.
 			$replacement = $this->temporary_file( '' ) . '.mo';
-			$mo->export_to_file( $replacement );
-			$this->generated_files[] = $replacement;
+			$this->write_mo( $translations, $replacement );
 		}
 
 		$requested       = new ArrayObject();
@@ -93,7 +133,10 @@ class TextDomainTest extends WPSVGIntegrationTestCase {
 			2
 		);
 
-		unload_textdomain( 'wpsvg', true );
+		$this->unload_translations();
+		// A fresh registry and listing, so files added by the test are seen.
+		$GLOBALS['wp_textdomain_registry'] = new WP_Textdomain_Registry();
+		$this->forget_language_pack_listing();
 		$this->plugin()->plugins_loaded();
 	}
 
@@ -104,16 +147,31 @@ class TextDomainTest extends WPSVGIntegrationTestCase {
 	public function test_wordpress_looks_for_the_translation_in_the_plugins_languages_folder() {
 		$this->use_test_locale();
 
-		$text = __( 'Settings saved.', 'wpsvg' );
+		$text = __( 'Settings saved.', self::DOMAIN );
 
-		$this->assertContains( 'wpsvg ' . $this->expected_file(), $this->requested->getArrayCopy() );
+		$this->assertContains( self::DOMAIN . ' ' . $this->expected_file(), $this->requested->getArrayCopy() );
 		$this->assertSame( 'Settings saved.', $text, 'Without a file the original text is used' );
 	}
 
 	public function test_plugin_ships_the_template_but_no_translation() {
 		$files = array_map( 'basename', glob( WP_PLUGIN_DIR . '/wp-svg-images/languages/*' ) );
 
-		$this->assertSame( array( 'wpsvg.pot' ), $files );
+		$this->assertSame( array( 'wp-svg-images.pot' ), $files );
+	}
+
+	/**
+	 * A language pack from translate.wordpress.org is installed under the
+	 * slug in WP_LANG_DIR/plugins and is preferred to a file in the
+	 * plugin's own folder.
+	 */
+	public function test_language_pack_named_after_the_slug_is_used_before_a_bundled_file() {
+		wp_mkdir_p( dirname( $this->language_pack_file() ) );
+		$this->write_mo( array( 'Settings saved.' => 'Saved by the language pack xx.' ), $this->language_pack_file() );
+
+		$this->use_test_locale( array( 'Settings saved.' => 'Saved by the bundled file xx.' ) );
+
+		$this->assertSame( 'Saved by the language pack xx.', __( 'Settings saved.', self::DOMAIN ) );
+		$this->assertContains( self::DOMAIN . ' ' . $this->language_pack_file(), $this->requested->getArrayCopy() );
 	}
 
 	public function test_translation_file_translates_the_plugins_strings() {
@@ -124,16 +182,16 @@ class TextDomainTest extends WPSVGIntegrationTestCase {
 			)
 		);
 
-		$this->assertSame( 'Saved in xx.', __( 'Settings saved.', 'wpsvg' ) );
-		$this->assertSame( 'SVG pictures xx', __( 'SVG images', 'wpsvg' ) );
-		$this->assertSame( 'Save', __( 'Save', 'wpsvg' ), 'A string without translation stays as it is' );
-		$this->assertTrue( is_textdomain_loaded( 'wpsvg' ) );
+		$this->assertSame( 'Saved in xx.', __( 'Settings saved.', self::DOMAIN ) );
+		$this->assertSame( 'SVG pictures xx', __( 'SVG images', self::DOMAIN ) );
+		$this->assertSame( 'Save', __( 'Save', self::DOMAIN ), 'A string without translation stays as it is' );
+		$this->assertTrue( is_textdomain_loaded( self::DOMAIN ) );
 	}
 
 	public function test_translation_does_not_leak_into_other_text_domains() {
 		$this->use_test_locale( array( 'Settings' => 'Settings xx' ) );
 
-		$this->assertSame( 'Settings xx', __( 'Settings', 'wpsvg' ) );
+		$this->assertSame( 'Settings xx', __( 'Settings', self::DOMAIN ) );
 		$this->assertSame( 'Settings', __( 'Settings', 'default' ) );
 	}
 

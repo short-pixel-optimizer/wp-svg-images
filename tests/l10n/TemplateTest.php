@@ -3,14 +3,17 @@
 require_once __DIR__ . '/TranslatableStrings.php';
 
 /**
- * The translation template languages/wpsvg.pot against the plugin's sources:
+ * The translation template languages/wp-svg-images.pot against the plugin's sources:
  * every translatable string has an entry, and every entry is still in use.
  *
  * No WordPress function is needed here; the files are read as text.
  */
 class TemplateTest extends WP_UnitTestCase {
 
-	const DOMAIN = 'wpsvg';
+	const DOMAIN = 'wp-svg-images';
+
+	/** Translation template, relative to the plugin folder. */
+	const TEMPLATE = 'languages/wp-svg-images.pot';
 
 	/** PHP files of the plugin that contain translatable strings. */
 	const SOURCES = array( 'wp-svg-images.php', 'upsell.php' );
@@ -47,7 +50,7 @@ class TemplateTest extends WP_UnitTestCase {
 	 * @return string[] Message IDs of the template.
 	 */
 	private function template_strings() {
-		return TranslatableStrings::in_template( $this->plugin_dir() . 'languages/wpsvg.pot' );
+		return TranslatableStrings::in_template( $this->plugin_dir() . self::TEMPLATE );
 	}
 
 	/**
@@ -63,18 +66,18 @@ class TemplateTest extends WP_UnitTestCase {
 	/* The extractor itself. */
 
 	public function test_extractor_finds_translation_calls_and_skips_look_alikes() {
-		$file = tempnam( get_temp_dir(), 'wpsvg' );
+		$file = tempnam( get_temp_dir(), 'wp-svg-images' );
 		file_put_contents(
 			$file,
 			'<?php
-			echo __( \'Plain\', \'wpsvg\' );
-			esc_html_e( "Double \"quoted\"", "wpsvg" );
-			printf( esc_html__( \'It\\\'s %s\', \'wpsvg\' ), __( \'nested\', \'other\' ) );
-			_x( \'Post\', \'verb\', \'wpsvg\' );
-			__( $variable, \'wpsvg\' );
+			echo __( \'Plain\', \'wp-svg-images\' );
+			esc_html_e( "Double \"quoted\"", "wp-svg-images" );
+			printf( esc_html__( \'It\\\'s %s\', \'wp-svg-images\' ), __( \'nested\', \'other\' ) );
+			_x( \'Post\', \'verb\', \'wp-svg-images\' );
+			__( $variable, \'wp-svg-images\' );
 			__( \'No domain\' );
-			$object->__( \'method\', \'wpsvg\' );
-			// __( \'comment\', \'wpsvg\' );
+			$object->__( \'method\', \'wp-svg-images\' );
+			// __( \'comment\', \'wp-svg-images\' );
 			function __() {}'
 		);
 
@@ -83,12 +86,12 @@ class TemplateTest extends WP_UnitTestCase {
 
 		$this->assertSame(
 			array(
-				array( '__', 'Plain', 'wpsvg' ),
-				array( 'esc_html_e', 'Double "quoted"', 'wpsvg' ),
-				array( 'esc_html__', "It's %s", 'wpsvg' ),
+				array( '__', 'Plain', 'wp-svg-images' ),
+				array( 'esc_html_e', 'Double "quoted"', 'wp-svg-images' ),
+				array( 'esc_html__', "It's %s", 'wp-svg-images' ),
 				array( '__', 'nested', 'other' ),
-				array( '_x', 'Post', 'wpsvg' ),
-				array( '__', null, 'wpsvg' ),
+				array( '_x', 'Post', 'wp-svg-images' ),
+				array( '__', null, 'wp-svg-images' ),
 				array( '__', 'No domain', null ),
 			),
 			array_map(
@@ -130,12 +133,17 @@ class TemplateTest extends WP_UnitTestCase {
 		$this->assertSame( array(), $wrong );
 	}
 
+	/**
+	 * wordpress.org builds language packs only for strings whose domain is
+	 * the plugin's slug, which is also its folder name.
+	 */
 	public function test_text_domain_header_names_the_domain_the_code_uses() {
+		$this->assertSame( self::DOMAIN, basename( $this->plugin_dir() ), 'The domain is the plugin slug' );
 		$this->assertSame( self::DOMAIN, $this->plugin_header( 'Text Domain' ) );
 		$this->assertSame( '/languages', $this->plugin_header( 'Domain Path' ) );
-		$this->assertFileExists( $this->plugin_dir() . 'languages/wpsvg.pot' );
+		$this->assertFileExists( $this->plugin_dir() . self::TEMPLATE );
 		// WP-CLI ends every header line with an escaped line break.
-		$this->assertMatchesRegularExpression( '/^"X-Domain: wpsvg(\\\\n)?"$/m', file_get_contents( $this->plugin_dir() . 'languages/wpsvg.pot' ) );
+		$this->assertMatchesRegularExpression( '/^"X-Domain: wp-svg-images(\\\\n)?"$/m', file_get_contents( $this->plugin_dir() . self::TEMPLATE ) );
 	}
 
 	public function test_template_lists_no_entry_twice() {
@@ -174,7 +182,7 @@ class TemplateTest extends WP_UnitTestCase {
 	 * comments come from `translators:` comments in the code.
 	 */
 	public function test_every_entry_with_placeholders_has_a_translators_comment() {
-		$entries = preg_split( '/\n\s*\n/', file_get_contents( $this->plugin_dir() . 'languages/wpsvg.pot' ) );
+		$entries = preg_split( '/\n\s*\n/', file_get_contents( $this->plugin_dir() . self::TEMPLATE ) );
 
 		$without_comment = array();
 		foreach ( $entries as $entry ) {

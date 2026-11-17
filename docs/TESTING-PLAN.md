@@ -19,7 +19,7 @@ checkpoint. The decisions from §7 are recorded there.
 | Other PHP | `upsell.php` — template partial included from the settings page with `$this` bound to `WPSVG` |
 | Bundled library | `svg-sanitizer/` — a vendored copy of `enshrined/svg-sanitize` (namespace `enshrined\svgSanitize`), version not recorded anywhere in the tree |
 | Assets | `assets/js/spio-upsell.js`, `assets/css/spio-upsell.css`, `assets/images/shortpixel-image-optimiser.svg` |
-| i18n | Text domain `wpsvg`, `languages/wpsvg.pot` |
+| i18n | Text domain `wp-svg-images` (the wordpress.org slug), `languages/wp-svg-images.pot` |
 | Dependency tooling | None. `.gitignore` already lists `vendor`, `composer.lock`, `/wordpress/`, `/travis_output/`, `.env.testing` (leftovers of an earlier test setup that is not in the tree) |
 | Distribution | WordPress.org SVN (`readme.txt` format) and Git Updater (`GitHub Plugin URI`, `Primary Branch` headers) |
 | Existing tests | None |
@@ -268,7 +268,7 @@ In order of user impact:
 |---|---|---|---:|
 | `multisite` | `WP_TESTS_MULTISITE=1` | Per-site settings isolation; super admin without a role on a subsite; network-activated plugin; `upload_filetypes` site option interplay | ~15 |
 | `cli` | WP-CLI inside the php container | `wp media import` of svg/svgz with no current user and with `--user`; activation via CLI (redirect flag left behind) | ~8 |
-| `l10n` | Loads a test locale | Text domain loads from `languages/`; every translatable string in PHP exists in `wpsvg.pot` (catches stale templates) | ~5 |
+| `l10n` | Loads a test locale | Text domain loads from `languages/`; every translatable string in PHP exists in `wp-svg-images.pot` (catches stale templates) | ~5 |
 
 - **Risk:** CLI and multisite each change who "the current user" is, which is
   exactly what the upload gate keys on — high-value, easy to get wrong.
