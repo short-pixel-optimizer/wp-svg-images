@@ -35,7 +35,7 @@
 			<?php esc_html_e( 'Optimize all images automatically', 'wpsvg' ) ?>
 		</h3>
 		<p class="button-wrapper">
-			<a href="<?php echo wp_nonce_url( self_admin_url( 'update.php?action=install-plugin&plugin=' . $plugin ), 'install-plugin_' . $plugin ) ?>" class="upsell-installer <?php echo $this->spio_installed ? 'hidden' : '' ?>" data-alt-text="<?php echo esc_attr__( 'Installing ...', 'wpsvg' ) ?>">
+			<a href="<?php echo wp_nonce_url( self_admin_url( 'update.php?action=install-plugin&plugin=' . $plugin ), 'install-plugin_' . $plugin ) ?>" class="upsell-installer <?php echo $this->spio_installed ? 'hidden' : '' ?>" data-alt-text="<?php echo esc_attr__( 'Installing...', 'wpsvg' ) ?>">
 				<?php esc_html_e( 'Install now', 'wpsvg' ) ?>
 			</a>
 			<a href="<?php echo 'plugins.php?action=activate&plugin=' . urlencode( $path ) . '&plugin_status=all&paged=1&s&_wpnonce=' . urlencode( wp_create_nonce( 'activate-plugin_' . $path ) ) ?>" class="upsell-activate <?php echo $this->spio_installed ? ( $this->spio_active ? '' : '' ) : 'hidden' ?>">
@@ -43,7 +43,7 @@
 			</a>
 		</p>
 		<h4 class="upsell-activate-done hidden">
-			<?php esc_html_e( 'Shortpixel activated!', 'wpsvg' ) ?>
+			<?php esc_html_e( 'ShortPixel activated!', 'wpsvg' ) ?>
 		</h4>
 	</div>
 

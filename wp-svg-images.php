@@ -150,6 +150,7 @@ if( ! class_exists('WPSVG') ){
 			$this->sanitizer->minify( true );
 
 			add_filter( 'wp_handle_upload_prefilter', array( $this, 'wp_handle_upload_prefilter' ) );
+			add_filter( 'wp_handle_sideload_prefilter', array( $this, 'wp_handle_upload_prefilter' ) ); // REST raw-body uploads
 
 			add_action( 'plugins_loaded', array( $this, 'plugins_loaded' ) );
 			add_action( 'admin_menu', array( $this, 'plugin_menu_link' ) );
@@ -262,9 +263,9 @@ if( ! class_exists('WPSVG') ){
 			if( ! get_user_meta( get_current_user_id(), 'wpsvg_notice_dismissed' ) ){
 				if( function_exists('get_current_screen') && isset( get_current_screen()->id ) && in_array( get_current_screen()->id, array( 'plugins', 'plugin-install', 'upload', 'attachment' ) ) ){ ?>
 					<div class="wpsvg-notice notice notice-success is-dismissible">
-						<p><?php printf( esc_html__( 'Hey, WP SVG images has some new settings! Activate SVG sanitization and manage permissions by going to the new %s', 'wpsvg' ), '<a href="' . admin_url('options-general.php?page=wp-svg-images.php') . '">' . esc_html__( 'Settings page', 'wpsvg' ) . '</a>' ) ?></p>
-						<p><small style="opacity:.9"><?php printf( esc_html__( 'WP SVG images in now a part of the %s family.', 'wpsvg' ), '<a href="https://shortpixel.com/api-tools" target="_blank">ShortPixel</a>' ) ?></small></p>
-						<p><a href="<?php echo admin_url('options-general.php?page=wp-svg-images.php') ?>" class="button button-primary"><?php esc_html_e( 'Go to Settings', 'wpsvg' ) ?></a></p>
+						<p><?php printf( /* translators: %s: link to the plugin settings page, with the text "Settings page". */ esc_html__( 'Hey, WP SVG Images has some new settings! Activate SVG sanitization and manage permissions by going to the new %s.', 'wpsvg' ), '<a href="' . admin_url('options-general.php?page=wp-svg-images.php') . '">' . /* translators: link text that completes the sentence "...by going to the new %s." */ esc_html__( 'Settings page', 'wpsvg' ) . '</a>' ) ?></p>
+						<p><small style="opacity:.9"><?php printf( /* translators: %s: link to the ShortPixel website, with the text "ShortPixel". */ esc_html__( 'WP SVG Images is now a part of the %s family.', 'wpsvg' ), '<a href="https://shortpixel.com/api-tools" target="_blank">ShortPixel</a>' ) ?></small></p>
+						<p><a href="<?php echo admin_url('options-general.php?page=wp-svg-images.php') ?>" class="button button-primary"><?php /* translators: button label. */ esc_html_e( 'Go to Settings', 'wpsvg' ) ?></a></p>
 					</div>
 					<script>
 					jQuery(document).ready(function($){
@@ -331,7 +332,7 @@ if( ! class_exists('WPSVG') ){
 			// Security:  form data can be faked, including the filetype. Check tmpfile.
 			if ( ! isset($file['tmp_name']) || ! is_string($file['tmp_name']))
 			{
-				$file['error'] = __( 'Temp file is not be set!', 'wpsvg' );
+				$file['error'] = __( 'Temp file is not set!', 'wpsvg' );
 				return $file; 
 			}
 
@@ -339,7 +340,10 @@ if( ! class_exists('WPSVG') ){
 
 			$svgTypes = ['image/svg+xml', 'image/svg'];
 
-			if( in_array($file_type, $svgTypes) )
+			// Files are accepted and served as SVG by extension, so sanitize by extension too, not only by sniffed type.
+			$is_svg_name = isset( $file['name'] ) && is_string( $file['name'] ) && preg_match( '/\.svgz?$/i', $file['name'] );
+
+			if( $is_svg_name || in_array($file_type, $svgTypes) )
 			{
 				$user = wp_get_current_user();
 				$roles = (array)$user->roles;
@@ -352,7 +356,7 @@ if( ! class_exists('WPSVG') ){
 				}
 
 				if( ! $unrestricted && ! $this->sanitize( $file['tmp_name'] ) ){
-					$file['error'] = __( 'This SVG can not be sanitized!', 'wpsvg' );
+					$file['error'] = __( 'This SVG cannot be sanitized!', 'wpsvg' );
 				}
 			}
 			return $file;
@@ -406,6 +410,10 @@ if( ! class_exists('WPSVG') ){
 
 			$clean_svg_code = $this->sanitizer->sanitize( $svg_code );
 
+			if( $clean_svg_code !== false ){
+				$clean_svg_code = $this->clean_animations( $clean_svg_code );
+			}
+
 			if( $clean_svg_code === false ){
 				return false;
 			}
@@ -417,6 +425,54 @@ if( ! class_exists('WPSVG') ){
 			file_put_contents( $file, $clean_svg_code );
 
 			return true;
+		}
+
+		// Remove animation elements whose attributeName is not a known safe attribute: animating href
+		// (or another URL attribute) to javascript: runs script in WebKit. Done here, not in the bundled
+		// sanitizer, because another plugin may have loaded its own copy of that library.
+		function clean_animations( $svg_code ){
+			if( trim( $svg_code ) === '' ) return $svg_code;
+
+			$presentation = array( 'x', 'y', 'width', 'height', 'cx', 'cy', 'r', 'rx', 'ry', 'x1', 'y1', 'x2', 'y2', 'dx', 'dy', 'd', 'points',
+				'offset', 'rotate', 'startoffset', 'viewbox', 'fx', 'fy', 'stddeviation', 'opacity', 'fill', 'fill-opacity', 'stroke',
+				'stroke-width', 'stroke-opacity', 'stroke-dasharray', 'stroke-dashoffset', 'stop-color', 'stop-opacity',
+				'flood-color', 'flood-opacity', 'lighting-color', 'color', 'visibility', 'display', 'font-size', 'transform' );
+			$allowed = array(
+				'animate' => $presentation, 'set' => $presentation, 'animatecolor' => $presentation,
+				'animatetransform' => array( 'transform', 'gradienttransform', 'patterntransform' ),
+				'animatemotion' => array(), // never needs attributeName
+			);
+
+			$dom = new DOMDocument();
+			$internal_errors = libxml_use_internal_errors( true );
+			$loaded = $dom->loadXML( $svg_code, LIBXML_NONET );
+			libxml_clear_errors();
+			libxml_use_internal_errors( $internal_errors );
+			if( ! $loaded || ! $dom->documentElement ) return false;
+
+			$unsafe = array();
+			foreach( $dom->getElementsByTagName( '*' ) as $element ){
+				$name = strtolower( $element->localName );
+				if( ! isset( $allowed[ $name ] ) ) continue;
+				foreach( $element->attributes as $attribute ){
+					$attr_name = strtolower( $attribute->localName );
+					$attr_value = strtolower( $attribute->value );
+					$bad_target = $attr_name === 'attributename' && ! in_array( trim( $attr_value ), $allowed[ $name ], true );
+					// Defense in depth: no script or data URLs in the animated values, whatever the target.
+					$bad_value = in_array( $attr_name, array( 'values', 'from', 'to', 'by' ), true )
+						&& preg_match( '/(?:javascript|vbscript|data):/', preg_replace( '/[\x00-\x20]+/', '', $attr_value ) );
+					if( $bad_target || $bad_value ){
+						$unsafe[] = $element;
+						break;
+					}
+				}
+			}
+			if( ! $unsafe ) return $svg_code;
+
+			foreach( $unsafe as $element ){
+				$element->parentNode->removeChild( $element );
+			}
+			return $dom->saveXML( $dom->documentElement, LIBXML_NOEMPTYTAG );
 		}
 
 		/**
@@ -566,9 +622,9 @@ if( ! class_exists('WPSVG') ){
 				<div class="postbox" style="margin-top:10px">
 					<div class="inside" style="padding-bottom:2px">
 						<h3><?php esc_html_e( 'Security notice', 'wpsvg' ) ?></h3>
-						<p><?php printf( esc_html__( 'Every SVG image is an XML file, which can contain %1$smalicious code%2$s, that can lead to %1$sXSS or Injection attacks%2$s.%3$sBelow you can decide which user roles (with upload capability) will be able to upload SVG images and also if their uploads will be sanitized.', 'wpsvg' ), '<strong>', '</strong>', '<br>' ) ?></p>
-						<p><?php printf( esc_html__( 'Sometimes you may need to upload some special SVG that includes your JavaScript code or other elements that are normally removed during sanitization - in that case, you can temporarily %1$senable unrestricted SVG upload%2$s if you are sure about your SVG code. Otherwise, it is recommended to use only the %1$senable sanitized SVG upload%2$s option.','wpsvg' ), '<code>', '</code>' ) ?> <a href="https://shortpixel.com/knowledge-base/article/524-about-sanitizing-svgs" target="_blank"><span class="dashicons dashicons-editor-help" style="text-decoration:none"></span><?php esc_html_e( 'Read more', 'wpsvg' ) ?></a></p>
-						<p class="notice notice-large notice-warning"><?php printf( esc_html__( 'You should %1$senable unrestricted SVG upload%2$s permanently only if you are absolutely sure that all users within this user role are responsible and experienced enough to detect malicious SVG code by themselves.', 'wpsvg' ), '<code>', '</code>' ) ?></p>
+						<p><?php printf( /* translators: %1$s: opening <strong> tag, %2$s: closing </strong> tag, %3$s: line break. */ esc_html__( 'Every SVG image is an XML file, which can contain %1$smalicious code%2$s, that can lead to %1$sXSS or injection attacks%2$s.%3$sBelow you can decide which user roles (with upload capability) will be able to upload SVG images and also if their uploads will be sanitized.', 'wpsvg' ), '<strong>', '</strong>', '<br>' ) ?></p>
+						<p><?php printf( /* translators: %1$s: opening <code> tag, %2$s: closing </code> tag. The text between them is an option name and must match its translation. */ esc_html__( 'Sometimes you may need to upload some special SVG that includes your JavaScript code or other elements that are normally removed during sanitization - in that case, you can temporarily %1$senable unrestricted SVG upload%2$s if you are sure about your SVG code. Otherwise, it is recommended to use only the %1$senable sanitized SVG upload%2$s option.','wpsvg' ), '<code>', '</code>' ) ?> <a href="https://shortpixel.com/knowledge-base/article/524-about-sanitizing-svgs" target="_blank"><span class="dashicons dashicons-editor-help" style="text-decoration:none"></span><?php /* translators: link to an article about SVG sanitization. */ esc_html_e( 'Read more', 'wpsvg' ) ?></a></p>
+						<p class="notice notice-large notice-warning"><?php printf( /* translators: %1$s: opening <code> tag, %2$s: closing </code> tag. The text between them is an option name and must match its translation. */ esc_html__( 'You should %1$senable unrestricted SVG upload%2$s permanently only if you are absolutely sure that all users within this user role are responsible and experienced enough to detect malicious SVG code by themselves.', 'wpsvg' ), '<code>', '</code>' ) ?></p>
 					</div>
 				</div>
 
