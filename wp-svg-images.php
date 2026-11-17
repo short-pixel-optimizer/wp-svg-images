@@ -172,25 +172,16 @@ if( ! class_exists('WPSVG') ){
 		}
 
 		/**
-		 * Supplies the SVG MIME type to WP All Import when it could not detect one.
+		 * Gives WP All Import imports the SVG type and sanitizes them.
 		 *
-		 * Hooked to `wp_all_import_image_mime_type`. Returns `image/svg+xml`
-		 * only when `$mime_type` is empty and the path ends in `.svg` or `.svgz`;
-		 * otherwise returns `$mime_type` unchanged. Upload permissions are not
-		 * checked here, so imports create SVG attachments whatever the
-		 * per-role settings say. WP All Import finds no type for SVG images
-		 * by itself: without this filter the attachment gets an empty MIME
-		 * type. Current releases sanitize `.svg` files on their own; every
-		 * release stores them with a lower-case extension.
+		 * WP All Import can't detect a type for SVGs, so `.svg` and `.svgz`
+		 * files without one get `image/svg+xml`. Any file that ends up with that
+		 * type is sanitized first; if that fails, the file is deleted (as WP All
+		 * Import does itself) and no type is returned. Role settings don't apply
+		 * here: every import is sanitized. Paths that aren't files are skipped.
 		 *
 		 * @todo The extension check is case-sensitive, so `logo.SVG` keeps an
 		 *       empty MIME type. Compare against strtolower( $image_filepath ).
-		 * @todo Nothing is sanitized here. Current WP All Import releases
-		 *       sanitize `.svg` files themselves, but older releases do not,
-		 *       and no release sanitizes `.svgz`, so with those an imported
-		 *       file gets the SVG type and keeps its scripts. Sanitize the
-		 *       file with sanitize() before reporting the type, or do not
-		 *       report a type for a file that could not be sanitized.
 		 *
 		 * @param string $mime_type      MIME type detected by WP All Import.
 		 * @param string $image_filepath Path of the imported image.
@@ -198,9 +189,18 @@ if( ! class_exists('WPSVG') ){
 		 */
 		function wp_all_import_svgs( $mime_type, $image_filepath ){
 			if( empty( $mime_type ) && ( substr( $image_filepath, -4 ) == '.svg' || substr( $image_filepath, -5 ) == '.svgz' ) ){
-				return 'image/svg+xml';
+				$svg_type = 'image/svg+xml';
+			}elseif( $mime_type === 'image/svg+xml' ){
+				$svg_type = $mime_type;
+			}else{
+				return $mime_type;
 			}
-			return $mime_type;
+
+			if( is_file( $image_filepath ) && ! $this->sanitize( $image_filepath ) ){
+				wp_delete_file( $image_filepath );
+				return '';
+			}
+			return $svg_type;
 		}
 
 		/**

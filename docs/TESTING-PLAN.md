@@ -75,7 +75,7 @@ checkpoint. The decisions from §7 are recorded there.
 |---|---|---|
 | Gutenberg `core/image` block | `render_block` filter | Injects `width`/`height` into `<img>` for SVG attachments |
 | Beaver Builder | `fl_module_upload_regex` filter | Adds `svgz?` to the photo module's allowed-extension regex |
-| WP All Import | `wp_all_import_image_mime_type` filter | Reports `image/svg+xml` for `.svg`/`.svgz` when WPAI found no type |
+| WP All Import | `wp_all_import_image_mime_type` filter | Reports `image/svg+xml` for `.svg`/`.svgz` when WPAI found no type, and sanitizes every file that gets that type (deletes it when it cannot be sanitized) |
 | ShortPixel Image Optimizer | `get_plugins()` / `is_plugin_active('shortpixel-image-optimiser/wp-shortpixel.php')` | Shows upsell box and enqueues upsell assets when not installed/active |
 | WordPress.org plugin installer | Upsell links to `update.php?action=install-plugin` / `plugins.php?action=activate`, fetched by `spio-upsell.js` | Network install of a third-party plugin from the admin |
 | Other plugins bundling `enshrined/svg-sanitize` (e.g. Safe SVG) | `class_exists` guard | Their sanitizer version is used instead of the bundled one |

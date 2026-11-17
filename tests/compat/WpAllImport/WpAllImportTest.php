@@ -92,27 +92,33 @@ class WpAllImportTest extends CompatTestCase {
 	}
 
 	/**
-	 * Pins the defect in WPSVG::wp_all_import_svgs(): the plugin gives every
-	 * imported `.svg` the SVG type and sanitizes nothing on this path. With
-	 * the current WP All Import that goes unnoticed, because it sanitizes
-	 * the file itself; with the older release the attachment keeps its
-	 * script. When fixed, the stored file has no script in either scenario.
+	 * The older WP All Import doesn't sanitize SVGs, so our filter has to.
 	 *
-	 * @group pinned
 	 * @dataProvider provide_attachment_kinds
 	 */
-	public function test_imported_svg_is_sanitized_by_wp_all_import_alone_pinned_for_deferred_fix( $kind ) {
+	public function test_imported_svg_is_stored_sanitized( $kind ) {
 		$id = $this->import( 'logo.svg', self::SIZED_DIRTY_SVG, $kind );
 
 		$this->assertIsInt( $id );
 		$this->assertSame( 'image/svg+xml', get_post_mime_type( $id ) );
 		$stored = $this->stored_content( $id );
-		if ( $this->uses_previous_versions() ) {
-			$this->assertSame( self::SIZED_DIRTY_SVG, $stored, 'Nobody sanitized the file' );
-		} else {
-			$this->assertStringNotContainsString( 'script', $stored );
-			$this->assertStringNotContainsString( 'onload', $stored );
-			$this->assertStringContainsString( '<rect></rect>', $stored );
+		$this->assertStringNotContainsString( 'script', $stored );
+		$this->assertStringNotContainsString( 'onload', $stored );
+		$this->assertStringContainsString( '<rect></rect>', $stored );
+	}
+
+	/**
+	 * WP All Import or our filter deletes the file, so nothing is left to
+	 * serve.
+	 */
+	public function test_imported_svg_that_cannot_be_sanitized_is_not_kept() {
+		$xhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><script>alert(1)</script></html>';
+
+		$id = $this->import( 'page.svg', $xhtml, 'files' );
+
+		$this->assertSame( array(), glob( wp_upload_dir()['path'] . '/page*.svg' ) );
+		if ( false !== $id ) {
+			$this->assertSame( '', get_post_mime_type( $id ) );
 		}
 	}
 
@@ -189,19 +195,14 @@ class WpAllImportTest extends CompatTestCase {
 	}
 
 	/**
-	 * Pins the defect in WPSVG::wp_all_import_svgs(): a gzipped SVG imported
-	 * as a file attachment gets the SVG type from this plugin, but neither
-	 * plugin sanitizes it. When fixed, the stored file has no script (or the
-	 * attachment gets no SVG type).
-	 *
-	 * @group pinned
+	 * No WP All Import release sanitizes `.svgz`, so our filter does.
 	 */
-	public function test_gzipped_svg_imported_as_a_file_is_stored_unsanitized_pinned_for_deferred_fix() {
+	public function test_gzipped_svg_imported_as_a_file_is_stored_sanitized() {
 		$id = $this->import( 'logo.svgz', gzencode( self::SIZED_DIRTY_SVG ), 'files' );
 
 		$this->assertIsInt( $id );
 		$this->assertSame( 'image/svg+xml', get_post_mime_type( $id ) );
-		$this->assertSame( self::SIZED_DIRTY_SVG, gzdecode( $this->stored_content( $id ) ) );
+		$this->assertSame( '<svg xmlns="http://www.w3.org/2000/svg" width="30" height="20"><rect></rect></svg>', gzdecode( $this->stored_content( $id ) ) );
 	}
 
 	/* HTMLPurifier, which WP All Import ships. */

@@ -209,6 +209,47 @@ class WPSVGTest extends WPSVGTestCase {
 	}
 
 	/**
+	 * @dataProvider provide_imports_that_get_the_svg_type
+	 */
+	public function test_wp_all_import_svgs_sanitizes_the_imported_file( $mime_type, $name ) {
+		$path = $this->temporary_file( $name, '<svg xmlns="http://www.w3.org/2000/svg" onload="a()"><script>x</script><rect/></svg>' );
+
+		$this->assertSame( 'image/svg+xml', $this->plugin()->wp_all_import_svgs( $mime_type, $path ) );
+		$this->assertSame( '<svg xmlns="http://www.w3.org/2000/svg"><rect></rect></svg>', file_get_contents( $path ) );
+	}
+
+	public function provide_imports_that_get_the_svg_type() {
+		return array(
+			'no type detected'     => array( '', 'logo.svg' ),
+			'svg type detected'    => array( 'image/svg+xml', 'logo.svg' ),
+			'svg type, other name' => array( 'image/svg+xml', 'logo.xml' ),
+		);
+	}
+
+	public function test_wp_all_import_svgs_sanitizes_gzipped_content() {
+		$path = $this->temporary_file( 'logo.svgz', gzencode( '<svg xmlns="http://www.w3.org/2000/svg"><script>x</script></svg>' ) );
+
+		$this->assertSame( 'image/svg+xml', $this->plugin()->wp_all_import_svgs( '', $path ) );
+		$this->assertSame( '<svg xmlns="http://www.w3.org/2000/svg"></svg>', gzdecode( file_get_contents( $path ) ) );
+	}
+
+	public function test_wp_all_import_svgs_deletes_a_file_that_cannot_be_sanitized_and_gives_no_type() {
+		$path = $this->temporary_file( 'logo.svg', '<html xmlns="http://www.w3.org/1999/xhtml"><script>x</script></html>' );
+		Functions\expect( 'wp_delete_file' )->once()->with( $path )->andReturnUsing( 'unlink' );
+
+		$this->assertSame( '', $this->plugin()->wp_all_import_svgs( '', $path ) );
+		$this->assertFileDoesNotExist( $path );
+	}
+
+	public function test_wp_all_import_svgs_leaves_a_file_of_another_type_untouched() {
+		$content = 'not an svg';
+		$path    = $this->temporary_file( 'logo.svg', $content );
+
+		$this->assertSame( 'image/png', $this->plugin()->wp_all_import_svgs( 'image/png', $path ) );
+		$this->assertSame( $content, file_get_contents( $path ) );
+	}
+
+	/**
 	 * @dataProvider provide_paths_that_do_not_end_in_an_svg_extension
 	 */
 	public function test_wp_all_import_svgs_leaves_other_files_alone( $path ) {
