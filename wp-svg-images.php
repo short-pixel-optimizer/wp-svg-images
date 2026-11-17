@@ -10,6 +10,7 @@
 	Primary Branch: 	main
 	Text Domain:		wp-svg-images
 	Domain Path:		/languages
+	Requires PHP:		7.4
 */
 
 defined( 'ABSPATH' ) ||	exit;
@@ -385,8 +386,6 @@ if( ! class_exists('WPSVG') ){
 			try{
 				$clean_svg_code = $this->sanitizer->sanitize( $svg_code );
 			}catch( \Throwable $e ){
-				return false;
-			}catch( \Exception $e ){ // PHP 5.6 has no Throwable
 				return false;
 			}
 

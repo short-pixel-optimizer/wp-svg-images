@@ -13,7 +13,7 @@ checkpoint. The decisions from §7 are recorded there.
 |---|---|
 | Language | PHP (plugin + bundled library), one small jQuery script, one minified CSS file |
 | Framework | WordPress plugin API (actions and filters); no Composer, no autoloader, no build step |
-| Declared runtime | `readme.txt`: *Requires at least* WP 3.0.1, *Requires PHP* 5.6.40, *Tested up to* WP 7.0 |
+| Declared runtime | `readme.txt`: *Requires at least* WP 3.0.1, *Requires PHP* 7.4, *Tested up to* WP 7.0 |
 | Actual runtime floor | PHP 7.1+ (nullable type hints in `svg-sanitizer/Exceptions/NestingException.php`); WP 5.0+ for the `render_block` integration |
 | Entry point | `wp-svg-images.php` — plugin header, `require_once` of the bundled sanitizer, three classes, `new WPSVG()` at load time |
 | Other PHP | `upsell.php` — template partial included from the settings page with `$this` bound to `WPSVG` |

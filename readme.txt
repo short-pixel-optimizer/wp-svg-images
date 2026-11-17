@@ -3,7 +3,7 @@ Contributors: shortpixel, kubiq
 Donate link: https://www.paypal.me/resizeImage
 Tags: svg, svg support, svg upload, sanitization
 Requires at least: 3.0.1
-Requires PHP: 5.6.40
+Requires PHP: 7.4
 Tested up to: 7.0
 Stable tag: 4.5
 License: GPLv2 or later
