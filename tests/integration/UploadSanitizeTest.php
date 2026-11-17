@@ -280,40 +280,29 @@ class UploadSanitizeTest extends WPSVGIntegrationTestCase {
 		$this->assertSame( $this->svg( '<style> g &gt; .a { fill: red; } </style>' ), file_get_contents( $file['tmp_name'] ) );
 	}
 
-	/* Pinned defects. */
-
 	/**
-	 * Pins a defect described in the wp_handle_upload_prefilter() docblock:
-	 * what the sanitizer throws is not caught, so the upload request ends
-	 * with an uncaught exception instead of a refused upload. An XHTML page
-	 * named `.svg` is sanitized because of its name and ends the same way.
+	 * A sanitizer error refuses the upload instead of crashing the request,
+	 * an XHTML page named `.svg` included.
 	 *
-	 * Fixed when the prefilter returns with `error` set; this test then
-	 * fails and becomes a regression test for the error message.
-	 *
-	 * @group pinned
 	 * @dataProvider provide_svg_that_makes_the_sanitizer_throw
 	 */
-	public function test_sanitizer_failure_escapes_the_upload_request_pinned_for_deferred_fix( $content, $expected_class ) {
+	public function test_svg_that_makes_the_sanitizer_throw_is_refused_and_kept_as_it_is( $content ) {
 		$this->set_permissions( array( 'author' => 1 ) );
 		$this->log_in_as( 'author' );
 		$file = $this->uploaded_file( $content );
 
-		try {
-			$this->prefilter( $file );
-			$this->fail( "Expected $expected_class" );
-		} catch ( Throwable $thrown ) {
-			$this->assertInstanceOf( $expected_class, $thrown );
-			$this->assertSame( $content, file_get_contents( $file['tmp_name'] ) );
-		}
+		$result = $this->prefilter( $file );
+
+		$this->assertSame( 'This SVG cannot be sanitized!', $result['error'] );
+		$this->assertSame( $content, file_get_contents( $file['tmp_name'] ) );
 	}
 
 	public function provide_svg_that_makes_the_sanitizer_throw() {
 		return array(
-			'use referencing its own parent' => array( $this->svg( '<g id="a"><use href="#a"/></g>' ), 'LogicException' ),
-			'svg nested in another root'     => array( '<?xml version="1.0"?><x><svg ' . self::SVG_NS . '/></x>', 'LogicException' ),
-			'xhtml page'                     => array( '<html xmlns="http://www.w3.org/1999/xhtml"><head><script>alert(1)</script></head></html>', 'LogicException' ),
-			'xhtml page with declaration'    => array( '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><script>alert(1)</script></html>', 'LogicException' ),
+			'use referencing its own parent' => array( $this->svg( '<g id="a"><use href="#a"/></g>' ) ),
+			'svg nested in another root'     => array( '<?xml version="1.0"?><x><svg ' . self::SVG_NS . '/></x>' ),
+			'xhtml page'                     => array( '<html xmlns="http://www.w3.org/1999/xhtml"><head><script>alert(1)</script></head></html>' ),
+			'xhtml page with declaration'    => array( '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><script>alert(1)</script></html>' ),
 		);
 	}
 }

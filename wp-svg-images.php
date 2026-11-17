@@ -303,10 +303,6 @@ if( ! class_exists('WPSVG') ){
 		 *       files), a role set to "disable SVG upload" uploads SVGs.
 		 *       Set `$file['error']` for SVG files from users without a
 		 *       non-zero permission.
-		 * @todo Exceptions thrown by the sanitizer (see sanitize()), for
-		 *       example for an XHTML page named `.svg`, are not caught and
-		 *       abort the upload request with a fatal error instead of
-		 *       setting `$file['error']`.
 		 *
 		 * @param array $file Single entry of `$_FILES` (`name`, `type`,
 		 *                    `tmp_name`, `error`, `size`).
@@ -357,23 +353,21 @@ if( ! class_exists('WPSVG') ){
 		 * call. The sanitizer output then goes through clean_animations().
 		 * Disallowed elements and attributes are removed and the file is kept;
 		 * the method fails when the content cannot be decoded or parsed as
-		 * XML, and when nothing but an XML declaration is left, as for a root
-		 * element written with a prefix (`<x:svg>`, see Sanitizer::sanitize()).
+		 * XML, when nothing but an XML declaration is left, as for a root
+		 * element written with a prefix (`<x:svg>`, see Sanitizer::sanitize()),
+		 * or when the sanitizer throws. A failed file is left as it was.
 		 * An empty file is "sanitized" to an empty string and reported as
 		 * success. Gzip content that cannot be decoded also raises a PHP
 		 * warning from gzdecode().
 		 *
-		 * @todo Well-formed XML whose root element is not `<svg>`, and an SVG
-		 *       in which a `<use>` references its own parent element, make the
-		 *       sanitizer throw a LogicException, which propagates to the
-		 *       caller. Catch Throwable here and return false.
 		 * @todo A path that cannot be read raises a PHP warning, then an empty
 		 *       file is written to that path and success is reported. Return
 		 *       false when file_get_contents() fails.
 		 *
 		 * @param string $file Absolute path of the file to sanitize.
 		 * @return bool True when the file was rewritten, false when it could
-		 *              not be decoded or parsed or has no root element left.
+		 *              not be decoded, parsed or sanitized or has no root
+		 *              element left.
 		 */
 		function sanitize( $file ){
 			$svg_code = file_get_contents( $file );
@@ -388,7 +382,13 @@ if( ! class_exists('WPSVG') ){
 			$this->sanitizer->setAllowedTags( new WPSVG_allowedTags() );
 			$this->sanitizer->setAllowedAttrs( new WPSVG_allowedAttrs() );
 
-			$clean_svg_code = $this->sanitizer->sanitize( $svg_code );
+			try{
+				$clean_svg_code = $this->sanitizer->sanitize( $svg_code );
+			}catch( \Throwable $e ){
+				return false;
+			}catch( \Exception $e ){ // PHP 5.6 has no Throwable
+				return false;
+			}
 
 			if( $clean_svg_code !== false ){
 				$clean_svg_code = $this->clean_animations( $clean_svg_code );

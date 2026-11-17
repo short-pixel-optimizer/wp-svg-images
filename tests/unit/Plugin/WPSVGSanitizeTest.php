@@ -152,26 +152,15 @@ class WPSVGSanitizeTest extends WPSVGTestCase {
 	}
 
 	/**
-	 * Pins a defect described in the sanitize() docblock: the sanitizer's
-	 * LogicException is not caught. It is thrown for well-formed XML whose
-	 * root is not `<svg>` and for a `<use>` that references its own parent.
+	 * The sanitizer throws on both of these.
 	 *
-	 * Fixed when sanitize() returns false for these files; this test then
-	 * fails and the cases move to the test for content that is refused.
-	 *
-	 * @group pinned
 	 * @dataProvider provide_content_that_makes_the_sanitizer_throw
 	 */
-	public function test_sanitizer_logic_exception_is_not_caught_pinned_for_deferred_fix( $content ) {
-		$path   = $this->temporary_file( 'throws.svg', $content );
-		$plugin = $this->plugin();
+	public function test_returns_false_and_keeps_the_file_when_the_sanitizer_throws( $content ) {
+		$path = $this->temporary_file( 'throws.svg', $content );
 
-		try {
-			$plugin->sanitize( $path );
-			$this->fail( 'Expected a LogicException' );
-		} catch ( LogicException $exception ) {
-			$this->assertSame( $content, file_get_contents( $path ) );
-		}
+		$this->assertFalse( $this->plugin()->sanitize( $path ) );
+		$this->assertSame( $content, file_get_contents( $path ) );
 	}
 
 	public function provide_content_that_makes_the_sanitizer_throw() {
