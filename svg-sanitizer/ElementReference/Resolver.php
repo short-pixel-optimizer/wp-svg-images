@@ -5,13 +5,6 @@ use enshrined\svgSanitize\data\XPath;
 use enshrined\svgSanitize\Exceptions\NestingException;
 use enshrined\svgSanitize\Helper;
 
-/**
- * Builds the graph of `id`-bearing elements and the `<use>` references between
- * them, and lists the elements that must be removed because they take part in
- * a reference loop or exceed the nesting limit.
- *
- * @package enshrined\svgSanitize\ElementReference
- */
 class Resolver
 {
     /**
@@ -34,24 +27,12 @@ class Resolver
      */
     protected $useNestingLimit;
 
-    /**
-     * @param XPath $xPath           Query object for the document to analyse.
-     * @param int   $useNestingLimit Maximum `<use>` nesting depth before an
-     *                               element is marked for removal.
-     */
     public function __construct(XPath $xPath, $useNestingLimit)
     {
         $this->xPath = $xPath;
         $this->useNestingLimit = $useNestingLimit;
     }
 
-    /**
-     * Analyses the document: collects identified elements, records `<use>`
-     * references between them and fills the removal list. Call once per
-     * instance: the removal list is never reset.
-     *
-     * @throws \LogicException See the first todo on processReferences().
-     */
     public function collect()
     {
         $this->collectIdentifiedElements();
@@ -84,21 +65,18 @@ class Resolver
      * DOM might have same ids assigned to different elements and leaving
      * it to client/browser implementation which element to actually use.
      *
-     * Subjects are stored by id, so when several elements share an id only
-     * the last one in document order is kept and at most one subject is
-     * returned, keyed by its id.
-     *
      * @param string $elementId
      * @return Subject[]
      */
     public function findByElementId($elementId)
     {
-        return array_filter(
-            $this->subjects,
-            function (Subject $subject) use ($elementId) {
-                return $elementId === $subject->getElementId();
-            }
-        );
+        // Subjects are keyed by id, so look it up directly. Filtering every
+        // subject here made each `<use>` check cost as much as the whole graph.
+        if (!isset($this->subjects[$elementId])) {
+            return [];
+        }
+
+        return [$elementId => $this->subjects[$elementId]];
     }
 
     /**
@@ -106,77 +84,147 @@ class Resolver
      */
     protected function collectIdentifiedElements()
     {
-        /** @var \DOMNodeList|\DOMElement[] $elements */
-        $elements = $this->xPath->query('//*[@id]');
-        foreach ($elements as $element) {
-            $this->subjects[$element->getAttribute('id')] = new Subject($element, $this->useNestingLimit);
+        $this->collectIdentifiedElementsUnder($this->xPath->document);
+    }
+
+    /**
+     * Visit the elements under $node in document order through their sibling
+     * links. Before PHP 8.4, an XPath query such as `//*[@id]` creates a PHP
+     * object for every match at once, at about half a kilobyte each.
+     *
+     * @param \DOMNode $node
+     */
+    protected function collectIdentifiedElementsUnder(\DOMNode $node)
+    {
+        for ($element = $node->firstChild; $element !== null; $element = $element->nextSibling) {
+            if (!$element instanceof \DOMElement) {
+                continue;
+            }
+            if ($element->hasAttribute('id')) {
+                $id = $element->getAttribute('id');
+                // Browsers resolve `#id` to the first element with that id. Keeping a
+                // later duplicate instead would let an empty decoy stand in for the
+                // element that is actually rendered.
+                if (!isset($this->subjects[$id])) {
+                    $this->subjects[$id] = new Subject($element, $this->useNestingLimit);
+                }
+            }
+            if ($element->hasChildNodes()) {
+                $this->collectIdentifiedElementsUnder($element);
+            }
         }
     }
 
     /**
      * Processes references from and to elements having `id` attribute concerning
      * their occurrence in `<use ... xlink:href="#identifier">` statements.
-     *
-     * Only `<use>` elements in the document's default namespace are looked at.
-     *
-     * @todo Only `<use>` elements that are direct children of an identified
-     *       element are recorded. A `<use>` nested one level deeper
-     *       (`<g id="a"><g><use href="#b"/></g></g>`) is not, so wrapping the
-     *       references in an extra element hides them from the loop, nesting
-     *       and threshold checks. Suggested fix: query descendants
-     *       (`.//use`) and attribute each `<use>` to its nearest identified
-     *       ancestor.
-     * @todo A `<use>` that references its own parent
-     *       (`<g id="a"><use href="#a"/></g>`) makes Subject::addUse() throw a
-     *       LogicException that nothing catches, so collect() and
-     *       Sanitizer::sanitize() end with an uncaught exception. Suggested
-     *       fix: mark the subject as invalid instead of calling addUse().
-     * @todo The query uses the `xlink` prefix without registering it. When a
-     *       child `<use>` has no plain `href` and the prefix is not declared
-     *       on the identified element or its ancestors, the query fails with
-     *       PHP warnings and none of that element's references are recorded.
-     *       Suggested fix: register the XLink namespace under `xlink` in
-     *       XPath::__construct().
      */
     protected function processReferences()
     {
-        $useNodeName = $this->xPath->createNodeName('use');
-        foreach ($this->subjects as $subject) {
-            $useElements = $this->xPath->query(
-                $useNodeName . '[@href or @xlink:href]',
-                $subject->getElement()
-            );
-
-            /** @var \DOMElement $useElement */
-            foreach ($useElements as $useElement) {
-                $useId = Helper::extractIdReferenceFromHref(
-                    Helper::getElementHref($useElement)
-                );
-                if ($useId === null || !isset($this->subjects[$useId])) {
-                    continue;
-                }
-                $subject->addUse($this->subjects[$useId]);
-                $this->subjects[$useId]->addUsedIn($subject);
-            }
+        // Note: the href attribute is deliberately not filtered in the XPath predicate.
+        // XPath attribute matching is case sensitive, so `[@href or @xlink:href]` would
+        // skip `<use HrEf="#id">`/`<use xlink:HrEf="#id">` - names that
+        // `Sanitizer::cleanHrefAttributes()` normalizes back to `href`/`xlink:href`
+        // afterwards, which would hand back a live reference the graph never saw.
+        //
+        // Every `<use>` inside an identified element counts, however deeply it is
+        // nested: rendering the element renders all of them, so wrapping them in
+        // a plain `<g>` must not hide them from the graph. To keep this linear,
+        // each `<use>` is attached to its nearest identified ancestor only, and
+        // each identified element records the identified elements nested
+        // directly inside it (see Subject::addContained()).
+        $documentElement = $this->xPath->document->documentElement;
+        if ($documentElement !== null) {
+            $ancestorIds = [];
+            // A `<use>` counts when it is in the root's namespace, which is what
+            // the `svg:use` XPath name matches. Checking that during the walk,
+            // instead of collecting every `<use>` up front, keeps memory flat.
+            $this->walkReferences($documentElement, null, $ancestorIds, (string) $documentElement->namespaceURI);
         }
     }
 
     /**
+     * Walk the tree once, recording each `<use>` reference on its nearest
+     * identified ancestor and each identified element on the one around it.
+     *
+     * @param \DOMElement $element
+     * @param Subject|null $nearest Nearest identified ancestor
+     * @param array<string, bool> $ancestorIds Ids of all ancestors
+     * @param string $useNamespace The namespace a `<use>` must be in
+     */
+    protected function walkReferences(\DOMElement $element, $nearest, array &$ancestorIds, $useNamespace)
+    {
+        $id = null;
+        if ($element->hasAttribute('id')) {
+            $id = $element->getAttribute('id');
+            if (isset($this->subjects[$id]) && $this->subjects[$id]->getElement() === $element) {
+                if ($nearest !== null) {
+                    $nearest->addContained($this->subjects[$id]);
+                }
+                $nearest = $this->subjects[$id];
+            }
+            if (isset($ancestorIds[$id])) {
+                $id = null;
+            } else {
+                $ancestorIds[$id] = true;
+            }
+        }
+
+        // Record the reference only now, so a `<use>` with its own id owns it:
+        // rendering `<use id="u" href="#x">` renders `#x`, so anything that uses
+        // `#u` renders `#x` too. Its own id is in $ancestorIds by now, so
+        // `<use id="a" href="#a">` counts as a self reference.
+        if ($element->localName === 'use' && (string) $element->namespaceURI === $useNamespace) {
+            $this->addReference($element, $nearest, $ancestorIds);
+        }
+
+        // Follow the sibling links. Before PHP 8.1, iterating childNodes with
+        // foreach looked each child up by position, which was quadratic in the
+        // number of children.
+        for ($child = $element->firstChild; $child !== null; $child = $child->nextSibling) {
+            if ($child instanceof \DOMElement) {
+                $this->walkReferences($child, $nearest, $ancestorIds, $useNamespace);
+            }
+        }
+
+        if ($id !== null) {
+            unset($ancestorIds[$id]);
+        }
+    }
+
+    /**
+     * @param \DOMElement $useElement
+     * @param Subject|null $nearest
+     * @param array<string, bool> $ancestorIds
+     */
+    protected function addReference(\DOMElement $useElement, $nearest, array $ancestorIds)
+    {
+        $useId = Helper::extractIdReferenceFromHref(
+            Helper::getElementHref($useElement)
+        );
+        if ($useId === null || !isset($this->subjects[$useId])) {
+            return;
+        }
+
+        // A `<use>` inside the element it references would render itself
+        // forever. That is attacker input, not a programming error, so remove
+        // the `<use>` instead of adding a self edge.
+        if (isset($ancestorIds[$useId])) {
+            $this->elementsToRemove[] = $useElement;
+            return;
+        }
+
+        if ($nearest === null) {
+            return;
+        }
+
+        $referenced = $this->subjects[$useId];
+        $nearest->addUse($referenced);
+        $referenced->addUsedIn($nearest);
+    }
+
+    /**
      * Determines and tags infinite loops.
-     *
-     * For a subject with a loop, the elements it references are added to the
-     * removal list under their id and its own references are cleared. When
-     * the nesting limit is hit, the element where it was hit is added as well.
-     *
-     * @todo A `<use id="a" href="#a"/>` is recognised as referencing itself,
-     *       but nothing is added to the removal list because the subject has
-     *       no recorded references, so the element stays in the document.
-     *       Suggested fix: add the subject's own element to the list.
-     * @todo The in_array() check is not strict, and any two DOMElement
-     *       objects compare equal, so once the removal list has one entry
-     *       every remaining subject is skipped and its loops stay undetected.
-     *       Suggested fix: pass `true` as the third argument, together with
-     *       the matching todo on Sanitizer::startClean().
      */
     protected function determineInvalidSubjects()
     {
@@ -191,7 +239,9 @@ class Resolver
             );
 
             try {
-                if ($useId === $subject->getElementId()) {
+                // Only a `<use>` follows its own href. An href on any other
+                // element, such as `<g id="a" href="#a">`, is inert.
+                if ($useId === $subject->getElementId() && strtolower($subject->getElement()->localName) === 'use') {
                     $this->markSubjectAsInvalid($subject);
                 } elseif ($subject->hasInfiniteLoop()) {
                     $this->markSubjectAsInvalid($subject);
@@ -219,9 +269,19 @@ class Resolver
      * @param Subject $subject
      */
     protected function markSubjectAsInvalid(Subject $subject) {
+        // Remove the `<use>` elements the subject renders, not only the targets of
+        // its direct uses. A subject whose loop runs through an element nested
+        // inside it has no direct uses, so clearing its edges alone would remove
+        // nothing and hide the loop from every later check.
+        $useElements = iterator_to_array(
+            $this->xPath->query('descendant-or-self::' . $this->xPath->createNodeName('use'), $subject->getElement()),
+            false
+        );
+
         $this->elementsToRemove = array_merge(
             $this->elementsToRemove,
-            $subject->clearInternalAndGetAffectedElements()
+            $subject->clearInternalAndGetAffectedElements(),
+            $useElements
         );
     }
 }

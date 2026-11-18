@@ -1,12 +1,6 @@
 <?php
 namespace enshrined\svgSanitize\data;
 
-/**
- * DOMXPath that registers the document's default namespace under the `svg`
- * prefix, so queries work whether or not the SVG declares a namespace.
- *
- * @package enshrined\svgSanitize\data
- */
 class XPath extends \DOMXPath
 {
     const DEFAULT_NAMESPACE_PREFIX = 'svg';
@@ -16,15 +10,6 @@ class XPath extends \DOMXPath
      */
     protected $defaultNamespaceURI;
 
-    /**
-     * @param \DOMDocument $doc Parsed document.
-     * @throws \LogicException When the document does not have exactly one
-     *                         `<svg>` element as its root (code 1570870568),
-     *                         for example any XML whose root is not `<svg>`.
-     *                         The root is matched by its local name, which is
-     *                         case-sensitive: a prefixed `<x:svg>` is accepted
-     *                         whatever its namespace, `<SVG>` is not.
-     */
     public function __construct(\DOMDocument $doc)
     {
         parent::__construct($doc);
@@ -32,9 +17,6 @@ class XPath extends \DOMXPath
     }
 
     /**
-     * Returns the node name to use in a query: `svg:<name>` when the document
-     * has a default namespace, the bare name otherwise.
-     *
      * @param string $nodeName
      * @return string
      */
@@ -46,12 +28,6 @@ class XPath extends \DOMXPath
         return self::DEFAULT_NAMESPACE_PREFIX . ':' . $nodeName;
     }
 
-    /**
-     * Records the root `<svg>` element's namespace and registers it under
-     * DEFAULT_NAMESPACE_PREFIX when it is not empty.
-     *
-     * @throws \LogicException When there is not exactly one root `<svg>`.
-     */
     protected function handleDefaultNamespace()
     {
         $rootElements = $this->getRootElements();
@@ -70,20 +46,18 @@ class XPath extends \DOMXPath
     }
 
     /**
-     * Returns the `<svg>` elements that are direct children of the document.
-     *
      * @return \DOMElement[]
      */
     protected function getRootElements()
     {
+        // Only `<svg>` elements directly under the document count, so look at its
+        // children. Walking getElementsByTagName('svg') visited every `<svg>` in
+        // the document, and before PHP 8.3 each step searched it again.
         $rootElements = [];
-        $elements = $this->document->getElementsByTagName('svg');
-        /** @var \DOMElement $element */
-        foreach ($elements as $element) {
-            if ($element->parentNode !== $this->document) {
-                continue;
+        foreach ($this->document->childNodes as $node) {
+            if ($node instanceof \DOMElement && $node->tagName === 'svg') {
+                $rootElements[] = $node;
             }
-            $rootElements[] = $element;
         }
         return $rootElements;
     }
