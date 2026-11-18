@@ -281,12 +281,12 @@ class UploadSanitizeTest extends WPSVGIntegrationTestCase {
 	}
 
 	/**
-	 * A sanitizer error refuses the upload instead of crashing the request,
-	 * an XHTML page named `.svg` included.
+	 * XML with a root other than `<svg>` is refused, an XHTML page named
+	 * `.svg` included.
 	 *
-	 * @dataProvider provide_svg_that_makes_the_sanitizer_throw
+	 * @dataProvider provide_xml_without_an_svg_root
 	 */
-	public function test_svg_that_makes_the_sanitizer_throw_is_refused_and_kept_as_it_is( $content ) {
+	public function test_xml_without_an_svg_root_is_refused_and_kept_as_it_is( $content ) {
 		$this->set_permissions( array( 'author' => 1 ) );
 		$this->log_in_as( 'author' );
 		$file = $this->uploaded_file( $content );
@@ -297,9 +297,17 @@ class UploadSanitizeTest extends WPSVGIntegrationTestCase {
 		$this->assertSame( $content, file_get_contents( $file['tmp_name'] ) );
 	}
 
-	public function provide_svg_that_makes_the_sanitizer_throw() {
+	public function test_use_referencing_its_own_parent_is_removed() {
+		$this->set_permissions( array( 'author' => 1 ) );
+		$this->log_in_as( 'author' );
+		$file = $this->uploaded_file( $this->svg( '<g id="a"><use href="#a"/></g>' ) );
+
+		$this->assertSame( 0, $this->prefilter( $file )['error'] );
+		$this->assertSame( $this->svg( '<g id="a"></g>' ), file_get_contents( $file['tmp_name'] ) );
+	}
+
+	public function provide_xml_without_an_svg_root() {
 		return array(
-			'use referencing its own parent' => array( $this->svg( '<g id="a"><use href="#a"/></g>' ) ),
 			'svg nested in another root'     => array( '<?xml version="1.0"?><x><svg ' . self::SVG_NS . '/></x>' ),
 			'xhtml page'                     => array( '<html xmlns="http://www.w3.org/1999/xhtml"><head><script>alert(1)</script></head></html>' ),
 			'xhtml page with declaration'    => array( '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><script>alert(1)</script></html>' ),

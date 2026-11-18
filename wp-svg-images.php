@@ -34,6 +34,7 @@ if( ! class_exists('enshrined\svgSanitize\Sanitizer') ){
 	require_once( 'svg-sanitizer/ElementReference/Subject.php' );
 	require_once( 'svg-sanitizer/ElementReference/Usage.php' );
 	require_once( 'svg-sanitizer/Exceptions/NestingException.php' );
+	require_once( 'svg-sanitizer/Exceptions/RegexException.php' );
 	require_once( 'svg-sanitizer/Helper.php' );
 	require_once( 'svg-sanitizer/Sanitizer.php' );
 }
@@ -353,10 +354,10 @@ if( ! class_exists('WPSVG') ){
 		 * `WPSVG_setAllowedTags` and `WPSVG_setAllowedAttrs` filters on every
 		 * call. The sanitizer output then goes through clean_animations().
 		 * Disallowed elements and attributes are removed and the file is kept;
-		 * the method fails when the content cannot be decoded or parsed as
-		 * XML, when nothing but an XML declaration is left, as for a root
-		 * element written with a prefix (`<x:svg>`, see Sanitizer::sanitize()),
-		 * or when the sanitizer throws. A failed file is left as it was.
+		 * the method fails when the content cannot be decoded, when the
+		 * sanitizer refuses it (see Sanitizer::sanitize()) or when it throws,
+		 * which older copies of the library can do. A failed file is left as
+		 * it was.
 		 * An empty file is "sanitized" to an empty string and reported as
 		 * success. Gzip content that cannot be decoded also raises a PHP
 		 * warning from gzdecode().

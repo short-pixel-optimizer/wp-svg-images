@@ -473,22 +473,26 @@ class UploadFlowTest extends WPSVGIntegrationTestCase {
 
 	/* Animations. */
 
+	/**
+	 * The sanitizer drops a link target, clean_animations() drops the
+	 * element for any other unsafe target.
+	 */
 	public function test_media_upload_removes_an_animation_with_an_unsafe_target() {
 		$this->set_permissions( array( 'author' => 1 ) );
 		$this->log_in_as( 'author' );
 
-		$id = $this->media_upload( $this->svg( '<rect><animateTransform attributeName="href" values="0;1"/><animateTransform attributeName="transform" type="rotate" values="0;90"/></rect>' ) );
+		$id = $this->media_upload( $this->svg( '<rect><animateTransform attributeName="href" values="0;1"/><animateTransform attributeName="x" values="0;1"/><animateTransform attributeName="transform" type="rotate" values="0;90"/></rect>' ) );
 
 		$this->assertIsInt( $id );
 		$this->assertSame(
-			$this->svg( '<rect><animateTransform attributeName="transform" type="rotate" values="0;90"></animateTransform></rect>' ),
+			$this->svg( '<rect><animateTransform values="0;1"></animateTransform><animateTransform attributeName="transform" type="rotate" values="0;90"></animateTransform></rect>' ),
 			$this->stored_content( $id )
 		);
 	}
 
 	/**
 	 * `set` and its `to` attribute are not on the default whitelists; a site
-	 * that adds them still gets unsafe animations removed.
+	 * that adds them still gets the unsafe ones made harmless.
 	 */
 	public function test_media_upload_removes_a_set_element_added_through_the_filters_when_it_is_unsafe() {
 		$this->set_permissions( array( 'author' => 1 ) );
@@ -511,7 +515,7 @@ class UploadFlowTest extends WPSVGIntegrationTestCase {
 		$id = $this->media_upload( $this->svg( '<a><set attributeName="href" to="javascript:alert(1)"/><rect><set attributeName="fill" to="red"/></rect></a>' ) );
 
 		$this->assertIsInt( $id );
-		$this->assertSame( $this->svg( '<a><rect><set attributeName="fill" to="red"></set></rect></a>' ), $this->stored_content( $id ) );
+		$this->assertSame( $this->svg( '<a><set></set><rect><set attributeName="fill" to="red"></set></rect></a>' ), $this->stored_content( $id ) );
 	}
 
 	public function test_media_upload_from_an_unrestricted_role_keeps_animations() {

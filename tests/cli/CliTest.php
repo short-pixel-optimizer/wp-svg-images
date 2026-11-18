@@ -153,10 +153,8 @@ class CliTest extends CliTestCase {
 
 	/**
 	 * Pins the defect in WPSVG::svg_dimensions(): the gzipped SVG is stored
-	 * sanitized, but its dimensions cannot be read and are stored as zeros.
-	 * Nothing is printed only because the sanitizer, which ran first, left
-	 * libxml's internal error handling switched on. When fixed, the
-	 * dimensions are 30 x 20.
+	 * sanitized, but its dimensions are stored as zeros and the parser's
+	 * warnings get printed. Fixed when it's 30 x 20 and nothing is printed.
 	 *
 	 * @group pinned
 	 */
@@ -167,7 +165,8 @@ class CliTest extends CliTestCase {
 		$result = $this->import( $this->file_to_import( gzencode( self::DIRTY_SVG ), 'logo.svgz' ), 'anna' );
 
 		$this->assertSame( self::SANITIZED_SVG, gzdecode( $this->stored_content( $result['id'] ) ), 'The file itself is sanitized' );
-		$this->assertSame( '', $result['stderr'] );
+		$this->assertStringContainsString( 'simplexml_load_file(): ', $result['stderr'] );
+		$this->assertStringContainsString( "Start tag expected, '<' not found", $result['stderr'] );
 		$metadata = json_decode( $this->wp_ok( 'post', 'meta', 'get', (string) $result['id'], '_wp_attachment_metadata', '--format=json' ), true );
 		$this->assertSame( 0, $metadata['width'] );
 		$this->assertSame( 0, $metadata['height'] );

@@ -225,6 +225,11 @@ class Resolver
 
     /**
      * Determines and tags infinite loops.
+     *
+     * @todo in_array() isn't strict, so once one element is flagged the
+     *       other subjects are skipped and a second loop isn't tagged here
+     *       (removeUnsafeUseElements() still removes it). Pass `true` as the
+     *       third argument.
      */
     protected function determineInvalidSubjects()
     {

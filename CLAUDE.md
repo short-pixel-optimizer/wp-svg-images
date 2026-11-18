@@ -58,7 +58,7 @@ bin/test.sh --verify                          # prove the environment works
 |---|---|
 | `wp-svg-images.php` | Plugin header, loads the sanitizer, `WPSVG_allowedTags`, `WPSVG_allowedAttrs`, `WPSVG` (all behaviour), activation hook, `new WPSVG()` |
 | `upsell.php` | Settings-page partial for the ShortPixel Image Optimizer offer; runs with `$this` = `WPSVG` |
-| `svg-sanitizer/` | Vendored `enshrined/svg-sanitize` (namespace `enshrined\svgSanitize`), loaded only when no other copy is already loaded |
+| `svg-sanitizer/` | Vendored `enshrined/svg-sanitize` 1.1.1, its `src/` folder without `svg-scanner.php` (namespace `enshrined\svgSanitize`), loaded only when no other copy is already loaded |
 | `assets/` | Upsell JS/CSS and logo |
 | `languages/` | Translation template |
 | `docs/TESTING-PLAN.md` | Approved documentation and testing plan |

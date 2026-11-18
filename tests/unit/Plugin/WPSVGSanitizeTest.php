@@ -3,6 +3,7 @@
 require_once __DIR__ . '/WPSVGTestCase.php';
 
 use Brain\Monkey\Filters;
+use enshrined\svgSanitize\Sanitizer;
 
 /**
  * WPSVG::sanitize(): sanitizes a file in place, plain or gzipped.
@@ -152,22 +153,61 @@ class WPSVGSanitizeTest extends WPSVGTestCase {
 	}
 
 	/**
-	 * The sanitizer throws on both of these.
+	 * Older copies of the library, loaded by other plugins, can throw.
 	 *
-	 * @dataProvider provide_content_that_makes_the_sanitizer_throw
+	 * @dataProvider provide_throwables
 	 */
-	public function test_returns_false_and_keeps_the_file_when_the_sanitizer_throws( $content ) {
-		$path = $this->temporary_file( 'throws.svg', $content );
+	public function test_returns_false_and_keeps_the_file_when_the_sanitizer_throws( $throwable ) {
+		$content           = '<svg ' . self::SVG_NS . '><rect/></svg>';
+		$path              = $this->temporary_file( 'throws.svg', $content );
+		$plugin            = $this->plugin();
+		$plugin->sanitizer = new class( $throwable ) extends Sanitizer {
+			private $throwable;
+
+			public function __construct( $throwable ) {
+				parent::__construct();
+				$this->throwable = $throwable;
+			}
+
+			public function sanitize( $dirty ) {
+				throw $this->throwable;
+			}
+		};
+
+		$this->assertFalse( $plugin->sanitize( $path ) );
+		$this->assertSame( $content, file_get_contents( $path ) );
+	}
+
+	public function provide_throwables() {
+		return array(
+			'exception' => array( new LogicException( 'Cannot add self usage' ) ),
+			'error'     => array( new TypeError( 'type' ) ),
+		);
+	}
+
+	/**
+	 * @dataProvider provide_well_formed_xml_without_an_svg_root
+	 */
+	public function test_returns_false_and_keeps_the_file_when_the_root_is_not_svg( $content ) {
+		$path = $this->temporary_file( 'page.svg', $content );
 
 		$this->assertFalse( $this->plugin()->sanitize( $path ) );
 		$this->assertSame( $content, file_get_contents( $path ) );
 	}
 
-	public function provide_content_that_makes_the_sanitizer_throw() {
+	public function provide_well_formed_xml_without_an_svg_root() {
 		return array(
-			'root element is not svg'       => array( '<html><body/></html>' ),
-			'use referencing its own parent' => array( '<svg ' . self::SVG_NS . '><g id="a"><use href="#a"/></g></svg>' ),
+			'html root'            => array( '<html><body/></html>' ),
+			'xhtml page'           => array( '<html xmlns="http://www.w3.org/1999/xhtml"><script>x</script></html>' ),
+			'svg in another root'  => array( '<x><svg ' . self::SVG_NS . '/></x>' ),
 		);
+	}
+
+	public function test_use_referencing_its_own_parent_is_removed() {
+		$path = $this->temporary_file( 'loop.svg', '<svg ' . self::SVG_NS . '><g id="a"><use href="#a"/></g></svg>' );
+
+		$this->assertTrue( $this->plugin()->sanitize( $path ) );
+		$this->assertSame( '<svg ' . self::SVG_NS . '><g id="a"></g></svg>', file_get_contents( $path ) );
 	}
 
 	public function test_cdata_section_is_written_as_text_escaped_once() {
@@ -178,8 +218,7 @@ class WPSVGSanitizeTest extends WPSVGTestCase {
 	}
 
 	/**
-	 * The bundled sanitizer leaves only an XML declaration for a prefixed
-	 * root (see SanitizerTest), which clean_animations() cannot parse.
+	 * The bundled sanitizer refuses a prefixed root (see SanitizerTest).
 	 */
 	public function test_returns_false_and_keeps_the_file_when_the_root_is_written_with_a_prefix() {
 		$content = '<s:svg xmlns:s="http://www.w3.org/2000/svg"><s:rect/></s:svg>';
@@ -190,14 +229,14 @@ class WPSVGSanitizeTest extends WPSVGTestCase {
 	}
 
 	public function test_unsafe_animation_is_removed_from_the_written_file() {
-		$path = $this->temporary_file( 'animated.svg', '<svg ' . self::SVG_NS . '><rect><animateTransform attributeName="href" values="0;1"/></rect></svg>' );
+		$path = $this->temporary_file( 'animated.svg', '<svg ' . self::SVG_NS . '><rect><animateTransform attributeName="x" values="0;1"/></rect></svg>' );
 
 		$this->assertTrue( $this->plugin()->sanitize( $path ) );
 		$this->assertSame( '<svg ' . self::SVG_NS . '><rect></rect></svg>', file_get_contents( $path ) );
 	}
 
 	public function test_gzipped_content_has_unsafe_animations_removed() {
-		$path = $this->temporary_file( 'animated.svgz', gzencode( '<svg ' . self::SVG_NS . '><rect><animateTransform attributeName="href" values="0;1"/></rect></svg>' ) );
+		$path = $this->temporary_file( 'animated.svgz', gzencode( '<svg ' . self::SVG_NS . '><rect><animateTransform attributeName="x" values="0;1"/></rect></svg>' ) );
 
 		$this->assertTrue( $this->plugin()->sanitize( $path ) );
 		$this->assertSame( '<svg ' . self::SVG_NS . '><rect></rect></svg>', gzdecode( file_get_contents( $path ) ) );

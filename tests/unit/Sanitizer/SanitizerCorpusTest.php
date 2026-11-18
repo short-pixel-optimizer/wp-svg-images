@@ -17,6 +17,12 @@ class SanitizerCorpusTest extends SanitizerTestCase {
 	 * Strings that must not appear in the output of any malicious fixture,
 	 * compared in lower case.
 	 */
+	/**
+	 * Fixtures that use an entity from their own DOCTYPE. The DOCTYPE is
+	 * stripped first, so these get refused rather than cleaned.
+	 */
+	const REFUSED = array( 'entity-with-script.svg', 'external-entity.svg' );
+
 	const FORBIDDEN = array(
 		'<script',
 		'javascript:',
@@ -106,6 +112,10 @@ class SanitizerCorpusTest extends SanitizerTestCase {
 
 		$output = $sanitizer->sanitize( file_get_contents( $path ) );
 
+		if ( in_array( basename( $path ), self::REFUSED, true ) ) {
+			$this->assertFalse( $output );
+			return;
+		}
 		$this->assertIsString( $output );
 		$this->assertStringStartsWith( '<svg ' . self::SVG_NS, $output );
 		foreach ( self::FORBIDDEN as $forbidden ) {

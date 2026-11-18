@@ -26,6 +26,7 @@ foreach (
 		'ElementReference/Subject.php',
 		'ElementReference/Usage.php',
 		'Exceptions/NestingException.php',
+		'Exceptions/RegexException.php',
 		'Helper.php',
 		'Sanitizer.php',
 	) as $wpsvg_tests_file

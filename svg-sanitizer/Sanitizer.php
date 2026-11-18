@@ -1109,6 +1109,10 @@ class Sanitizer
      * or expand past the threshold. Runs after cleaning, on the reference graph
      * of the cleaned document.
      *
+     * @todo in_array() isn't strict and DOMElements compare equal, so one
+     *       flagged element removes every `<use>` in the document. Pass
+     *       `true` as the third argument.
+     *
      * @param array $elementsToRemove Elements the reference graph flagged
      */
     protected function removeUnsafeUseElements(array $elementsToRemove)

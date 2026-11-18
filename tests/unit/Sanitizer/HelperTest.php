@@ -41,9 +41,10 @@ class HelperTest extends TestCase {
 			'external target is returned as is'  => array( '<use href="https://example.com/a.svg#a"/>', 'https://example.com/a.svg#a' ),
 			'whitespace is kept'                 => array( '<use href=" #a "/>', ' #a ' ),
 			'XLink namespace under another prefix' => array( '<use xmlns:x="' . self::XLINK_NS . '" x:href="#c"/>', '#c' ),
-			'xlink prefix bound to another namespace' => array( '<use xmlns:xlink="http://example.com/not-xlink" xlink:href="#d"/>', null ),
+			'xlink prefix bound to another namespace' => array( '<use xmlns:xlink="http://example.com/not-xlink" xlink:href="#d"/>', '#d' ),
 			'element in the SVG namespace'       => array( '<use xmlns="http://www.w3.org/2000/svg" href="#e"/>', '#e' ),
-			'attribute name is case-sensitive'   => array( '<use HREF="#f"/>', null ),
+			'attribute name in another case'     => array( '<use HREF="#f"/>', '#f' ),
+			'other prefix, other namespace'      => array( '<use xmlns:x="http://example.com/x" x:href="#g"/>', null ),
 		);
 	}
 
@@ -63,7 +64,9 @@ class HelperTest extends TestCase {
 			'no hash'                         => array( 'foo', null ),
 			'empty string'                    => array( '', null ),
 			'url with a fragment'             => array( 'https://example.com/a.svg#foo', null ),
-			'leading whitespace'              => array( ' #foo', null ),
+			'spaces around the value'         => array( " #foo \n", 'foo' ),
+			'tab and line break inside'       => array( "#f\to\no", 'foo' ),
+			'percent-encoded fragment'        => array( '#%66oo', 'foo' ),
 			'null'                            => array( null, null ),
 			'integer'                         => array( 5, null ),
 			'array'                           => array( array( '#foo' ), null ),

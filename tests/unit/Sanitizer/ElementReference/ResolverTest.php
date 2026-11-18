@@ -85,16 +85,27 @@ class ResolverTest extends TestCase {
 	/**
 	 * Asserts the removal list holds exactly these elements, in this order.
 	 *
-	 * @param string[] $expected_ids
-	 * @param Resolver $resolver
+	 * @param DOMElement[] $expected
+	 * @param Resolver     $resolver
 	 */
-	private function assertElementsToRemove( array $expected_ids, Resolver $resolver ) {
+	private function assertElementsToRemove( array $expected, Resolver $resolver ) {
 		$actual = array_values( $resolver->getElementsToRemove() );
 
-		$this->assertCount( count( $expected_ids ), $actual );
-		foreach ( $expected_ids as $index => $id ) {
-			$this->assertSame( $this->element( $id ), $actual[ $index ], "Entry $index is #$id" );
+		$this->assertCount( count( $expected ), $actual );
+		foreach ( $expected as $index => $element ) {
+			$this->assertSame( $element, $actual[ $index ], "Entry $index" );
 		}
+	}
+
+	/**
+	 * @param string $id
+	 * @return DOMElement The first `<use>` inside the element with that id.
+	 */
+	private function use_in( $id ) {
+		$use = $this->element( $id )->getElementsByTagName( 'use' )->item( 0 );
+		$this->assertNotNull( $use, "#$id contains a use element" );
+
+		return $use;
 	}
 
 	public function test_knows_nothing_before_collect() {
@@ -133,10 +144,13 @@ class ResolverTest extends TestCase {
 		$this->assertSame( array(), $resolver->findByElementId( 'A' ) );
 	}
 
-	public function test_only_the_last_element_is_kept_when_an_id_is_used_twice() {
+	/**
+	 * Browsers resolve `#a` to the first element with that id.
+	 */
+	public function test_only_the_first_element_is_kept_when_an_id_is_used_twice() {
 		$resolver = $this->collected( '<g id="a"/><rect id="a"/>' );
 
-		$this->assertSame( 'rect', $this->subject( $resolver, 'a' )->getElement()->nodeName );
+		$this->assertSame( 'g', $this->subject( $resolver, 'a' )->getElement()->nodeName );
 	}
 
 	public function test_find_by_element_returns_the_subject_of_that_element() {
@@ -196,6 +210,12 @@ class ResolverTest extends TestCase {
 			'document without a namespace'       => array( '<g id="a"><use href="#b"/></g><rect id="b"/>', self::XLINK ),
 			'xlink:href without default namespace' => array( '<g id="a"><use xlink:href="#b"/></g><rect id="b"/>', self::XLINK ),
 			'other use elements are ignored'     => array( '<g id="a"><use href="#b"/><use href="#missing"/><use href="other.svg#b"/><use/></g><rect id="b"/>', $both ),
+			'use nested deeper than a direct child' => array( '<g id="a"><g><use href="#b"/></g></g><rect id="b"/>', $both ),
+			'the use element itself carries the id' => array( '<use id="a" href="#b"/><rect id="b"/>', $both ),
+			'href with surrounding whitespace'   => array( '<g id="a"><use href=" #b "/></g><rect id="b"/>', $both ),
+			'xlink prefix declared on the use'   => array( '<g id="a"><use ' . self::XLINK . ' xlink:href="#b"/></g><rect id="b"/>', self::SVG ),
+			'XLink namespace under another prefix' => array( '<g id="a"><use xmlns:x="http://www.w3.org/1999/xlink" x:href="#b"/></g><rect id="b"/>', self::SVG ),
+			'a use without href next to a valid one' => array( '<g id="a"><use/><use href="#b"/></g><rect id="b"/>', self::SVG ),
 		);
 	}
 
@@ -218,47 +238,51 @@ class ResolverTest extends TestCase {
 
 	public function provide_use_elements_that_are_not_recorded() {
 		return array(
-			'use nested deeper than a direct child'   => array( '<g id="a"><g><use href="#b"/></g></g><rect id="b"/>' ),
 			'use whose parent has no id'              => array( '<g id="a"/><g><use href="#b"/></g><rect id="b"/>' ),
-			'the use element itself carries the id'   => array( '<use id="a" href="#b"/><rect id="b"/>' ),
 			'use element in another namespace'        => array( '<g id="a"><x:use href="#b"/></g><rect id="b"/>' ),
 			'href without a leading hash'             => array( '<g id="a"><use href="b"/></g><rect id="b"/>' ),
-			'href with leading whitespace'            => array( '<g id="a"><use href=" #b"/></g><rect id="b"/>' ),
 			'href to another file'                    => array( '<g id="a"><use href="other.svg#b"/></g><rect id="b"/>' ),
 			'href in another case'                    => array( '<g id="a"><use href="#B"/></g><rect id="b"/>' ),
 			'reference from an element other than use' => array( '<g id="a"><a href="#b"/></g><rect id="b"/>' ),
 		);
 	}
 
-	/**
-	 * A `<use>` that references itself is not a loop for the graph and adds
-	 * nothing to the removal list.
-	 */
-	public function test_use_element_referencing_itself_is_not_listed_for_removal() {
+	public function test_use_element_referencing_itself_is_listed_for_removal() {
 		$resolver = $this->collected( '<use id="a" href="#a"/>' );
 
-		$this->assertSame( array(), $resolver->getElementsToRemove() );
+		$this->assertElementsToRemove( array( $this->element( 'a' ) ), $resolver );
+	}
+
+	/**
+	 * A `<use>` inside the element it points to is removed, not recorded.
+	 */
+	public function test_use_referencing_its_parent_is_listed_for_removal() {
+		$resolver = $this->collected( '<g id="a"><use href="#a"/></g>' );
+
+		$this->assertElementsToRemove( array( $this->use_in( 'a' ) ), $resolver );
+		$this->assertSame( 0, $this->subject( $resolver, 'a' )->countUse() );
 	}
 
 	/**
 	 * For a loop the element that is used by the first subject of the loop is
-	 * listed, under its id, and the first subject's references are cleared.
+	 * listed under its id, then the first subject's `<use>` elements, and
+	 * its references are cleared.
 	 */
-	public function test_loop_of_two_lists_the_second_element_for_removal() {
+	public function test_loop_of_two_lists_the_second_element_and_the_first_use_for_removal() {
 		$resolver = $this->collected( '<g id="a"><use href="#b"/></g><g id="b"><use href="#a"/></g>' );
 
-		$this->assertSame( array( 'b' ), array_keys( $resolver->getElementsToRemove() ) );
-		$this->assertElementsToRemove( array( 'b' ), $resolver );
+		$this->assertSame( array( 'b', 0 ), array_keys( $resolver->getElementsToRemove() ) );
+		$this->assertElementsToRemove( array( $this->element( 'b' ), $this->use_in( 'a' ) ), $resolver );
 		$this->assertSame( 0, $this->subject( $resolver, 'a' )->countUse() );
 		$this->assertFalse( $this->subject( $resolver, 'b' )->hasInfiniteLoop() );
 	}
 
-	public function test_loop_of_three_lists_only_the_second_element_for_removal() {
+	public function test_loop_of_three_lists_the_second_element_and_the_first_use_for_removal() {
 		$resolver = $this->collected(
 			'<g id="a"><use href="#b"/></g><g id="b"><use href="#c"/></g><g id="c"><use href="#a"/></g>'
 		);
 
-		$this->assertElementsToRemove( array( 'b' ), $resolver );
+		$this->assertElementsToRemove( array( $this->element( 'b' ), $this->use_in( 'a' ) ), $resolver );
 		$this->assertFalse( $this->subject( $resolver, 'c' )->hasInfiniteLoop() );
 	}
 
@@ -277,7 +301,8 @@ class ResolverTest extends TestCase {
 
 	/**
 	 * With a limit of 3 the fourth element is where the limit is exceeded:
-	 * it is listed first, followed by what the first subject uses.
+	 * it's listed first, then what the first subject uses and its `<use>`
+	 * elements.
 	 */
 	public function test_chain_beyond_the_nesting_limit_lists_the_offending_element_and_the_first_reference() {
 		$resolver = $this->collected(
@@ -285,79 +310,8 @@ class ResolverTest extends TestCase {
 			3
 		);
 
-		$this->assertElementsToRemove( array( 'd', 'b' ), $resolver );
+		$this->assertElementsToRemove( array( $this->element( 'd' ), $this->element( 'b' ), $this->use_in( 'a' ) ), $resolver );
 		$this->assertSame( 0, $this->subject( $resolver, 'a' )->countUse() );
-	}
-
-	/**
-	 * Pins a defect in Resolver::processReferences(): a `<use>` that
-	 * references its own parent makes Subject::addUse() throw, and collect()
-	 * lets the LogicException escape (so does Sanitizer::sanitize()).
-	 *
-	 * Fixed when collect() returns normally for this document; this test then
-	 * fails and becomes a regression test for whatever the fix reports
-	 * (most likely the element listed for removal).
-	 *
-	 * @group pinned
-	 */
-	public function test_use_referencing_its_parent_throws_logic_exception_pinned_for_deferred_fix() {
-		$resolver = $this->resolver( '<g id="a"><use href="#a"/></g>' );
-
-		$this->expectException( LogicException::class );
-		$this->expectExceptionCode( 1570713416 );
-
-		$resolver->collect();
-	}
-
-	/**
-	 * Pins a defect in Resolver::processReferences(): the query names the
-	 * `xlink` prefix without registering it. When a child `<use>` has no
-	 * plain `href` and the prefix is not declared on the identified element
-	 * or above it, the query fails: PHP raises warnings and none of that
-	 * element's references are recorded, not even the valid `href` one.
-	 *
-	 * Fixed when collect() raises no warning and records the references;
-	 * this test then fails and becomes a regression test asserting the count.
-	 *
-	 * @group pinned
-	 * @dataProvider provide_documents_where_the_xlink_prefix_is_not_in_scope
-	 */
-	public function test_references_are_lost_when_xlink_prefix_is_not_in_scope_pinned_for_deferred_fix( $inner ) {
-		$resolver = $this->resolver( $inner, 15, self::SVG );
-		$warnings = array();
-
-		set_error_handler(
-			function ( $number, $message ) use ( &$warnings ) {
-				$warnings[] = $message;
-				return true;
-			},
-			E_WARNING
-		);
-		try {
-			$resolver->collect();
-		} finally {
-			restore_error_handler();
-		}
-
-		$this->assertCount( 2, $warnings );
-		$this->assertStringContainsString( 'Undefined namespace prefix', $warnings[0] );
-		$this->assertStringContainsString( 'foreach', $warnings[1] );
-		$this->assertSame( 0, $this->subject( $resolver, 'a' )->countUse() );
-		$this->assertSame( 0, $this->subject( $resolver, 'b' )->countUsedIn() );
-	}
-
-	public function provide_documents_where_the_xlink_prefix_is_not_in_scope() {
-		return array(
-			'prefix declared on the use element itself' => array(
-				'<g id="a"><use ' . self::XLINK . ' xlink:href="#b"/></g><rect id="b"/>',
-			),
-			'XLink namespace under another prefix'      => array(
-				'<g id="a"><use xmlns:x="http://www.w3.org/1999/xlink" x:href="#b"/></g><rect id="b"/>',
-			),
-			'a use without href next to a valid one'    => array(
-				'<g id="a"><use/><use href="#b"/></g><rect id="b"/>',
-			),
-		);
 	}
 
 	/**
@@ -365,7 +319,8 @@ class ResolverTest extends TestCase {
 	 * check is not strict and any two DOMElement objects compare equal, so
 	 * after the first entry in the removal list every remaining subject is
 	 * skipped. Here the loop between c and d is never looked at: d is not
-	 * listed and c still reports its loop.
+	 * listed and c still reports its loop. The sanitizer still removes it
+	 * (see SanitizerUseTest).
 	 *
 	 * Fixed when d is listed as well and c no longer has a loop; this test
 	 * then fails and becomes a regression test asserting `b` and `d`.
@@ -378,7 +333,7 @@ class ResolverTest extends TestCase {
 			. '<g id="c"><use href="#d"/></g><g id="d"><use href="#c"/></g>'
 		);
 
-		$this->assertElementsToRemove( array( 'b' ), $resolver );
+		$this->assertElementsToRemove( array( $this->element( 'b' ), $this->use_in( 'a' ) ), $resolver );
 		$this->assertTrue( $this->subject( $resolver, 'c' )->hasInfiniteLoop() );
 	}
 }
