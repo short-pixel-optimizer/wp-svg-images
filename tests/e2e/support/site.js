@@ -42,6 +42,9 @@ async function siteState( request ) {
 async function logIn( page, login ) {
 	await page.context().clearCookies();
 	await page.goto( '/wp-login.php' );
+	// The login page focuses and selects the user name field 200 ms after it
+	// loads. Typing before that puts the password into the user name field.
+	await expect( page.locator( '#user_login' ) ).toBeFocused();
 	await page.locator( '#user_login' ).fill( login );
 	await page.locator( '#user_pass' ).fill( PASSWORD );
 	await page.locator( '#wp-submit' ).click();

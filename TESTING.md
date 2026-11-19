@@ -355,10 +355,12 @@ List them with `bin/test.sh all --group pinned`. Lifecycle rules: `CLAUDE.md`,
   so the base test case deletes the files a test added to the uploads folder.
   A test that bypasses it leaves files that rename later uploads
   (`image-1.svg`).
-- **PHP warnings depend on earlier tests.** The sanitizer switches libxml's
-  internal error handling on and never off, which silences later
-  `simplexml_load_file()` warnings; the base test case resets it after each
-  test. Wrap calls that may warn in `with_warnings_captured()`.
+- **PHP warnings can depend on earlier tests.** The bundled sanitizer
+  restores libxml's internal error handling when it is done, but an older
+  copy loaded by another plugin (a `compat` scenario) switches it on and
+  never off, which silences later `simplexml_load_file()` warnings; the base
+  test cases reset it after each test. Wrap calls that may warn in
+  `with_warnings_captured()`.
 - **`active_plugins` is fixed by the test bootstrap** through a
   `pre_option_active_plugins` filter, so `update_option()` and
   `deactivate_plugins()` do not change what WordPress reads. Add a later

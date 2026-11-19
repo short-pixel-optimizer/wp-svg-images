@@ -156,7 +156,6 @@ class SafeSvgTest extends CompatTestCase {
 		return array(
 			'role disabled'            => array( array( 'author' => 0 ) ),
 			'role not in the settings' => array( array( 'administrator' => 1 ) ),
-			'no settings saved'        => array( null ),
 		);
 	}
 
@@ -234,16 +233,15 @@ class SafeSvgTest extends CompatTestCase {
 	/* Results that depend on which sanitizer copy is loaded. */
 
 	/**
-	 * With the current Safe SVG's copy of the library the upload works; with
-	 * the bundled copy it ends in the LogicException that the `integration`
-	 * suite pins. The older Safe SVG's copy has the `<use>` defect as well.
+	 * Works with our copy and the current Safe SVG's. The older Safe SVG's
+	 * copy throws inside Safe SVG's own prefilter, which we can't catch.
 	 *
-	 * @dataProvider provide_svg_the_bundled_sanitizer_fails_on
+	 * @dataProvider provide_svg_older_sanitizer_copies_fail_on
 	 */
-	public function test_uploads_that_break_the_bundled_sanitizer_depend_on_the_loaded_copy( $inner, $stored_inner, $throwable, $works_with_the_older_copy ) {
+	public function test_uploads_that_break_older_sanitizer_copies_depend_on_the_loaded_copy( $inner, $stored_inner, $throwable, $works_with_the_older_copy ) {
 		$this->set_permissions( array( 'author' => 1 ) );
 		$this->log_in_as( 'author' );
-		$works = $this->uses_previous_versions() ? $works_with_the_older_copy : $this->safe_svg_loaded_first();
+		$works = $this->uses_previous_versions() ? $works_with_the_older_copy : true;
 
 		if ( ! $works ) {
 			$this->expectException( $throwable );
@@ -257,7 +255,7 @@ class SafeSvgTest extends CompatTestCase {
 		);
 	}
 
-	public function provide_svg_the_bundled_sanitizer_fails_on() {
+	public function provide_svg_older_sanitizer_copies_fail_on() {
 		return array(
 			'use element referencing its parent' => array( '<g id="a"><use href="#a"/></g>', '<g id="a"></g>', LogicException::class, false ),
 		);

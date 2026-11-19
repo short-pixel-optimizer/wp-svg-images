@@ -88,7 +88,7 @@ bin/test.sh --verify                          # prove the environment works
 | `uninstall.php` | Deletes the promo banner's dismissals when the plugin is deleted |
 | `build/shortpixel/` | Generated copy of the shared modules (`promo-banner`) and their autoloader; do not edit, rebuild |
 | `composer.json` | The module build: path repository `../modules`, namespace / hook / text-domain rewrite |
-| `svg-sanitizer/` | Vendored `enshrined/svg-sanitize` (namespace `enshrined\svgSanitize`), loaded only when no other copy is already loaded |
+| `svg-sanitizer/` | Vendored `enshrined/svg-sanitize` 1.1.1, its `src/` folder without `svg-scanner.php` (namespace `enshrined\svgSanitize`), loaded only when no other copy is already loaded |
 | `assets/` | Upsell JS/CSS and logo |
 | `languages/` | Translation template |
 | `docs/TESTING-PLAN.md` | Approved documentation and testing plan |
@@ -113,8 +113,9 @@ Upload flow for a user whose role allows SVG:
   constructor; the instance is not stored anywhere. Tests reach it through
   the registered callbacks or by constructing a new instance.
 - **Settings.** Option `wpsvg_settings`: `role_<slug>` => `0` disabled,
-  `1` sanitized, `2` unrestricted. Read into `$this->settings` on `init`; a
-  missing key means disabled in the upload filters.
+  `1` sanitized, `2` unrestricted. Read into `$this->settings` on `init` and
+  resolved per role by `role_permission()`: once saved, a missing key means
+  disabled; before the first save, roles with `upload_files` get `1`.
 - **Other state.** Option `WPSVGActivated` (one-shot activation redirect),
   user meta `wpsvg_notice_dismissed`, option `wpsvg-promo-banner` (promo
   banner dismissals per site: campaign id => time).
@@ -134,8 +135,12 @@ Upload flow for a user whose role allows SVG:
 - **File format.** `wp-svg-images.php`, `upsell.php` and the JS asset use CRLF
   line endings and ASCII only; keep both. Indent with tabs in plugin code and
   four spaces in `svg-sanitizer/`.
-- **Vendored code.** Do not reformat `svg-sanitizer/`; documentation-only
-  changes are allowed there. `build/shortpixel/` is generated: no changes at
+- **Vendored code.** `svg-sanitizer/` stays as upstream released it, so an
+  update is a plain copy of the upstream `src/` folder: do not reformat it
+  and do not document it further. The only additions are `@todo` comments
+  for open defects; carry them over on an update while the defect is still
+  there. What the plugin relies on is described by the tests in
+  `tests/unit/Sanitizer/`. `build/shortpixel/` is generated: no changes at
   all.
 
 ## Non-negotiable rules

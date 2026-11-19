@@ -120,10 +120,10 @@ class NetworkTest extends WPSVGIntegrationTestCase {
 	}
 
 	/**
-	 * A new site has no settings, and uploads are blocked without them: the
-	 * fresh-install defect pinned in the `integration` suite, once per site.
+	 * A new site has no settings, so it gets the fresh-install defaults,
+	 * not the main site's settings.
 	 */
-	public function test_new_site_has_no_settings_and_allows_no_svg_upload() {
+	public function test_new_site_has_no_settings_and_sanitizes_svg_uploads() {
 		$this->save_permissions_on( get_main_site_id(), array( 'administrator' => 2 ) );
 		$user_id = $this->user_with_roles( 'administrator', array( $this->second_site => 'administrator' ) );
 
@@ -131,8 +131,8 @@ class NetworkTest extends WPSVGIntegrationTestCase {
 		$result = $this->media_upload( self::DIRTY_SVG );
 
 		$this->assertFalse( get_option( 'wpsvg_settings' ) );
-		$this->assertWPError( $result );
-		$this->assertSame( 'Sorry, you are not allowed to upload this file type.', $result->get_error_message() );
+		$this->assertIsInt( $result );
+		$this->assertSame( self::SANITIZED_SVG, $this->stored_content( $result ) );
 	}
 
 	public function test_role_is_judged_per_site() {

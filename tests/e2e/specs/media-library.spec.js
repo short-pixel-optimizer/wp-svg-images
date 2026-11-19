@@ -194,19 +194,21 @@ test.describe( 'roles without permission', () => {
 	} );
 } );
 
-test.describe( 'known defects', () => {
-	// Pins the defect in WPSVG::admin_options_page(): the settings page shows
-	// every role as "sanitized" on a fresh install, but uploads are blocked
-	// until the form is saved once. When fixed, the upload is stored.
-	test( 'a fresh install shows sanitized but refuses the upload, pinned for deferred fix @pinned', async ( { page, request } ) => {
+test.describe( 'fresh install', () => {
+	// Before the first save every role shows as "sanitized", and uploads
+	// should match.
+	test( 'a fresh install shows sanitized and stores the upload sanitized', async ( { page, request } ) => {
 		await resetSite( request, {} );
 		await logIn( page, 'admin' );
 		await page.goto( '/wp-admin/options-general.php?page=wp-svg-images.php' );
 		await expect( page.locator( '#role_administrator' ) ).toHaveValue( '1' );
 
-		await uploadWithPlainForm( page, svgFile( 'logo.svg', CLEAN_SVG ) );
+		await uploadInMediaLibrary( page, svgFile( 'logo.svg', DIRTY_SVG ) );
 
-		await expect( page.locator( 'body' ) ).toContainText( 'Sorry, you are not allowed to upload this file type.' );
-		expect( ( await siteState( request ) ).attachments ).toEqual( [] );
+		await expect( gridTiles( page ) ).toHaveCount( 1 );
+		const state = await siteState( request );
+		expect( state.settings ).toBeNull();
+		expect( state.attachments ).toHaveLength( 1 );
+		expect( state.attachments[ 0 ].content ).toBe( SANITIZED );
 	} );
 } );

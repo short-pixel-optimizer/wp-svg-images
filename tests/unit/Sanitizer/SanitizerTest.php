@@ -181,9 +181,23 @@ class SanitizerTest extends SanitizerTestCase {
 	public function provide_empty_inputs() {
 		return array(
 			'empty string' => array( '' ),
-			'string zero'  => array( '0' ),
 			'null'         => array( null ),
 			'false'        => array( false ),
+		);
+	}
+
+	/**
+	 * Only `''` (and what PHP casts to it) counts as empty input.
+	 *
+	 * @dataProvider provide_other_falsy_inputs
+	 */
+	public function test_other_falsy_input_returns_false( $input ) {
+		$this->assertFalse( ( new Sanitizer() )->sanitize( $input ) );
+	}
+
+	public function provide_other_falsy_inputs() {
+		return array(
+			'string zero'  => array( '0' ),
 			'integer zero' => array( 0 ),
 			'empty array'  => array( array() ),
 		);
@@ -196,7 +210,7 @@ class SanitizerTest extends SanitizerTestCase {
 		$sanitizer = new Sanitizer();
 
 		$this->assertFalse( $sanitizer->sanitize( $input ) );
-		$this->assertSame( array(), $sanitizer->getXmlIssues() );
+		$this->assertNotEmpty( $sanitizer->getXmlIssues(), 'The parser errors are reported' );
 	}
 
 	public function provide_input_that_is_not_well_formed() {
@@ -214,15 +228,23 @@ class SanitizerTest extends SanitizerTestCase {
 	}
 
 	/**
-	 * Well-formed XML that is not an SVG is not a `false`: it throws.
+	 * Well-formed XML whose root is not `<svg>` is refused, not thrown.
+	 *
+	 * @dataProvider provide_well_formed_xml_without_an_svg_root
 	 */
-	public function test_well_formed_xml_with_another_root_element_throws() {
+	public function test_well_formed_xml_with_another_root_element_returns_false( $input ) {
 		$sanitizer = new Sanitizer();
 
-		$this->expectException( LogicException::class );
-		$this->expectExceptionCode( 1570870568 );
+		$this->assertFalse( $sanitizer->sanitize( $input ) );
+		$this->assertSame( array( 'Got 0 svg elements, expected exactly one' ), array_column( $sanitizer->getXmlIssues(), 'message' ) );
+	}
 
-		$sanitizer->sanitize( '<html><body/></html>' );
+	public function provide_well_formed_xml_without_an_svg_root() {
+		return array(
+			'html root'                  => array( '<html><body/></html>' ),
+			'svg nested in another root' => array( '<x><svg ' . self::SVG_NS . '/></x>' ),
+			'prefixed svg root'          => array( '<s:svg xmlns:s="http://www.w3.org/2000/svg"><s:rect/></s:svg>' ),
+		);
 	}
 
 	public function test_same_instance_gives_the_same_result_twice() {
@@ -266,25 +288,22 @@ class SanitizerTest extends SanitizerTestCase {
 		$this->assertSame( array(), $sanitizer->getXmlIssues() );
 	}
 
-	public function test_issues_are_reset_by_a_run_that_returns_false() {
+	public function test_issues_are_replaced_by_those_of_a_run_that_returns_false() {
 		$sanitizer = new Sanitizer();
 		$sanitizer->sanitize( $this->svg( '<script/>' ) );
 
 		$sanitizer->sanitize( '<svg' );
 
-		$this->assertSame( array(), $sanitizer->getXmlIssues() );
+		$this->assertSame( array( "Couldn't find end of Start Tag svg line 1" ), array_column( $sanitizer->getXmlIssues(), 'message' ) );
 	}
 
-	/**
-	 * Empty input returns before anything is reset.
-	 */
-	public function test_issues_of_the_previous_run_survive_an_empty_input() {
+	public function test_issues_are_reset_by_an_empty_input() {
 		$sanitizer = new Sanitizer();
 		$sanitizer->sanitize( $this->svg( '<script/>' ) );
 
 		$sanitizer->sanitize( '' );
 
-		$this->assertCount( 1, $sanitizer->getXmlIssues() );
+		$this->assertSame( array(), $sanitizer->getXmlIssues() );
 	}
 
 	/* Elements. */
@@ -446,29 +465,22 @@ class SanitizerTest extends SanitizerTestCase {
 	}
 
 	/**
-	 * Pins a defect in Sanitizer::cleanAttributesOnWhitelist(): attributes
-	 * are removed by local name without their namespace, so a prefixed
-	 * attribute that is not on the whitelist is reported as removed but is
-	 * still in the output.
+	 * Prefixed attributes off the whitelist are removed and reported by
+	 * their full name.
 	 *
-	 * Fixed when the attributes are gone from the output; this test then
-	 * fails and becomes a regression test asserting `<a></a>` and `<rect>`
-	 * without attributes.
-	 *
-	 * @group pinned
 	 * @dataProvider provide_prefixed_attributes_that_are_not_on_the_whitelist
 	 */
-	public function test_prefixed_attribute_is_reported_but_not_removed_pinned_for_deferred_fix( $root_attributes, $markup, $reported ) {
+	public function test_removes_prefixed_attribute_that_is_not_on_the_whitelist( $root_attributes, $markup, $expected, $reported ) {
 		$inner = $this->sanitize_inner( $markup, $root_attributes );
 
-		$this->assertSame( $markup, $inner );
+		$this->assertSame( $expected, $inner );
 		$this->assertSame( array( "Suspicious attribute '$reported'" ), $this->issue_messages() );
 	}
 
 	public function provide_prefixed_attributes_that_are_not_on_the_whitelist() {
 		return array(
-			'xlink:actuate'                    => array( self::XLINK_NS, '<a xlink:actuate="onLoad"></a>', 'actuate' ),
-			'event handler in a foreign namespace' => array( 'xmlns:x="http://example.org/x"', '<rect x:onload="alert(1)"></rect>', 'onload' ),
+			'xlink:actuate'                        => array( self::XLINK_NS, '<a xlink:actuate="onLoad"></a>', '<a></a>', 'xlink:actuate' ),
+			'event handler in a foreign namespace' => array( 'xmlns:x="http://example.org/x"', '<rect x:onload="alert(1)"></rect>', '<rect></rect>', 'x:onload' ),
 		);
 	}
 
@@ -491,7 +503,7 @@ class SanitizerTest extends SanitizerTestCase {
 	}
 
 	/**
-	 * The document type is reported under the name it declares, on line -1.
+	 * The document type is stripped before parsing and not reported.
 	 */
 	public function test_removes_the_document_type_declaration() {
 		$sanitizer = $this->plugin_sanitizer();
@@ -500,29 +512,28 @@ class SanitizerTest extends SanitizerTestCase {
 		);
 
 		$this->assertSame( '<svg ' . self::SVG_NS . '><rect></rect></svg>', $output );
-		$this->assertSame( array( array( 'message' => "Suspicious node 'svg'", 'line' => -1 ) ), $sanitizer->getXmlIssues() );
+		$this->assertSame( array(), $sanitizer->getXmlIssues() );
 	}
 
 	/**
-	 * Entities are never expanded: the reference is removed and the external
-	 * file is not read.
+	 * Entities are never expanded. The DOCTYPE is stripped before parsing,
+	 * so its entities are undefined and the document is refused.
+	 *
+	 * @dataProvider provide_documents_that_reference_declared_entities
 	 */
-	public function test_removes_a_reference_to_an_external_entity_without_loading_it() {
+	public function test_refuses_a_document_that_references_an_entity_it_declares( $input, $entity ) {
 		$sanitizer = $this->plugin_sanitizer();
-		$output    = $sanitizer->sanitize(
-			'<!DOCTYPE svg [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>' . $this->svg( '<text>&xxe;</text>' )
-		);
 
-		$this->assertSame( '<svg ' . self::SVG_NS . '><text></text></svg>', $output );
-		$this->assertSame( array( "Suspicious node 'xxe'", "Suspicious node 'svg'" ), $this->issue_messages() );
+		$this->assertFalse( $sanitizer->sanitize( $input ) );
+		$this->assertSame( array( "Entity '$entity' not defined" ), $this->issue_messages() );
 	}
 
-	public function test_removes_a_reference_to_an_internal_entity_that_holds_markup() {
-		$output = $this->plugin_sanitizer()->sanitize(
-			'<!DOCTYPE svg [<!ENTITY payload "<script>alert(1)</script>">]>' . $this->svg( '<g>&payload;</g>' )
+	public function provide_documents_that_reference_declared_entities() {
+		return array(
+			'external entity'                 => array( '<!DOCTYPE svg [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>' . $this->svg( '<text>&xxe;</text>' ), 'xxe' ),
+			'internal entity holding markup'  => array( '<!DOCTYPE svg [<!ENTITY payload "<script>alert(1)</script>">]>' . $this->svg( '<g>&payload;</g>' ), 'payload' ),
+			'entity in an attribute value'    => array( '<!DOCTYPE svg [<!ENTITY x "10">]>' . $this->svg( '<rect width="&x;"/>' ), 'x' ),
 		);
-
-		$this->assertSame( '<svg ' . self::SVG_NS . '><g></g></svg>', $output );
 	}
 
 	public function test_does_not_apply_attribute_defaults_declared_in_the_document_type() {
@@ -546,26 +557,6 @@ class SanitizerTest extends SanitizerTestCase {
 
 		$this->assertStringNotContainsString( 'aaaaaaaaaa', (string) $output );
 		$this->assertStringNotContainsString( '&c;', (string) $output );
-	}
-
-	/**
-	 * Pins a defect in Sanitizer::sanitize(): an entity reference inside an
-	 * attribute value is kept while the DOCTYPE that declares the entity is
-	 * removed, so the output is not well-formed and cannot be read back.
-	 *
-	 * Fixed when the output no longer contains the reference; this test then
-	 * fails and becomes a regression test asserting the output parses.
-	 *
-	 * @group pinned
-	 */
-	public function test_entity_reference_in_attribute_makes_output_malformed_pinned_for_deferred_fix() {
-		$sanitizer = $this->plugin_sanitizer();
-		$output    = $sanitizer->sanitize(
-			'<!DOCTYPE svg [<!ENTITY x "10">]>' . $this->svg( '<rect width="&x;"/>' )
-		);
-
-		$this->assertSame( '<svg ' . self::SVG_NS . '><rect width="&x;"></rect></svg>', $output );
-		$this->assertFalse( $sanitizer->sanitize( $output ) );
 	}
 
 	/* PHP tags. */
@@ -651,23 +642,10 @@ class SanitizerTest extends SanitizerTestCase {
 	/* Prefixed root. */
 
 	/**
-	 * Pins a defect in Sanitizer::sanitize(): a prefixed root `<x:svg>`
-	 * passes the root check and is then removed by the whitelist, so the
-	 * method returns an XML declaration and no SVG at all, even when the
-	 * declaration is switched off.
-	 *
-	 * Fixed when the result is false or contains the root element; this
-	 * test then fails and becomes a regression test for that result.
-	 *
-	 * @group pinned
+	 * A prefixed `<x:svg>` root doesn't count as an SVG root.
 	 */
-	public function test_prefixed_root_returns_only_an_xml_declaration_pinned_for_deferred_fix() {
-		$sanitizer = $this->plugin_sanitizer();
-
-		$output = $sanitizer->sanitize( '<x:svg xmlns:x="http://www.w3.org/2000/svg"><x:rect/></x:svg>' );
-
-		$this->assertSame( '<?xml version="1.0"?> ', $output );
-		$this->assertSame( array( "Suspicious tag 'x:svg'" ), $this->issue_messages() );
+	public function test_prefixed_root_is_refused() {
+		$this->assertFalse( $this->plugin_sanitizer()->sanitize( '<x:svg xmlns:x="http://www.w3.org/2000/svg"><x:rect/></x:svg>' ) );
 	}
 
 	/* Remote references. */
@@ -704,6 +682,8 @@ class SanitizerTest extends SanitizerTestCase {
 				"url('file:///etc/passwd')",
 				"URL('HTTP://example.org/x')",
 				"url( ' http://example.org/x ' )",
+				'url(https://example.org/x)',
+				'https://example.org/x',
 			)
 		);
 	}
@@ -730,19 +710,20 @@ class SanitizerTest extends SanitizerTestCase {
 				"url('#local')",
 				"url('/local.svg#a')",
 				'url(#local)',
-				'https://example.org/x',
 				'red',
 			)
 		);
 	}
 
 	/**
-	 * Only `url(...)` attribute values are covered by the option; links are
-	 * governed by the href rules, which allow http and https.
+	 * http(s) links are kept by default; the option removes them too.
 	 */
-	public function test_remove_remote_references_does_not_apply_to_href() {
+	public function test_remove_remote_references_applies_to_href() {
 		$markup = '<image href="https://example.org/t.png"></image>';
-		$inner  = $this->sanitize_inner(
+
+		$this->assertSame( $markup, $this->sanitize_inner( $markup ) );
+
+		$inner = $this->sanitize_inner(
 			$markup,
 			'',
 			function ( Sanitizer $sanitizer ) {
@@ -750,7 +731,8 @@ class SanitizerTest extends SanitizerTestCase {
 			}
 		);
 
-		$this->assertSame( $markup, $inner );
+		$this->assertSame( '<image></image>', $inner );
+		$this->assertSame( array( "Suspicious attribute 'href'" ), $this->issue_messages() );
 	}
 
 	public function test_remove_remote_references_without_argument_switches_it_off() {
@@ -767,46 +749,25 @@ class SanitizerTest extends SanitizerTestCase {
 		$this->assertSame( $markup, $inner );
 	}
 
-	/**
-	 * Pins a defect in Sanitizer::hasRemoteReference(): the pattern requires
-	 * quotes inside `url()`, so the unquoted form is not seen as remote.
-	 *
-	 * Fixed when the attribute is removed; this test then fails and the
-	 * value moves to provide_remote_url_values().
-	 *
-	 * @group pinned
-	 */
-	public function test_unquoted_remote_url_is_kept_pinned_for_deferred_fix() {
-		$markup = '<rect fill="url(https://example.org/x)"></rect>';
-		$inner  = $this->sanitize_inner(
-			$markup,
-			'',
-			function ( Sanitizer $sanitizer ) {
-				$sanitizer->removeRemoteReferences( true );
-			}
-		);
-
-		$this->assertSame( $markup, $inner );
-		$this->assertSame( array(), $this->issue_messages() );
-	}
-
 	/* Global state. */
 
 	/**
-	 * Pins a defect in Sanitizer::setUpBefore(): libxml's internal error
-	 * handling is switched on and never restored, so it stays on after
-	 * sanitize() returns.
+	 * The libxml error setting is put back after the call.
 	 *
-	 * Fixed when the setting is back to what it was before the call; this
-	 * test then fails and becomes a regression test asserting false.
-	 *
-	 * @group pinned
+	 * @dataProvider provide_libxml_internal_error_settings
 	 */
-	public function test_libxml_internal_errors_stay_enabled_after_sanitize_pinned_for_deferred_fix() {
-		libxml_use_internal_errors( false );
+	public function test_libxml_internal_errors_setting_is_restored_after_sanitize( $before ) {
+		libxml_use_internal_errors( $before );
 
 		( new Sanitizer() )->sanitize( $this->svg( '<rect/>' ) );
 
-		$this->assertTrue( libxml_use_internal_errors() );
+		$this->assertSame( $before, libxml_use_internal_errors() );
+	}
+
+	public function provide_libxml_internal_error_settings() {
+		return array(
+			'off' => array( false ),
+			'on'  => array( true ),
+		);
 	}
 }

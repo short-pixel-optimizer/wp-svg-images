@@ -41,7 +41,7 @@ abstract class WPSVGIntegrationTestCase extends WP_UnitTestCase {
 		unset( $_FILES['upload'] );
 		$this->remove_added_uploads();
 
-		// The sanitizer leaves libxml's internal error handling switched on.
+		// Older copies of the sanitizer leave libxml's internal error handling switched on.
 		libxml_clear_errors();
 		libxml_use_internal_errors( false );
 

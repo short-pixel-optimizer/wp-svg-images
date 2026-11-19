@@ -117,6 +117,25 @@ class WPSVGCleanAnimationsTest extends WPSVGTestCase {
 		);
 	}
 
+	/**
+	 * Elements whose names only contain an animation name are not animations.
+	 */
+	public function test_elements_with_similar_names_are_left_alone() {
+		$markup = $this->svg( '<animations attributeName="href"></animations><offset attributeName="href"></offset><x:animat xmlns:x="urn:example" attributeName="href"></x:animat>' );
+
+		$this->assertSame( $markup, $this->plugin()->clean_animations( $markup ) );
+	}
+
+	public function test_unsafe_animations_are_found_at_any_depth_in_a_large_document() {
+		$group  = '<g><path d="M0 0"></path><circle><animate attributeName="r" values="1;2"></animate><SET attributeName="href" to="#a"></SET></circle></g>';
+		$kept   = '<g><path d="M0 0"></path><circle><animate attributeName="r" values="1;2"></animate></circle></g>';
+		$nested = str_repeat( '<g>', 50 ) . '<animateMotion attributeName="href"></animateMotion><rect></rect>' . str_repeat( '</g>', 50 );
+
+		$output = $this->plugin()->clean_animations( $this->svg( str_repeat( $group, 2000 ) . $nested ) );
+
+		$this->assertSame( $this->svg( str_repeat( $kept, 2000 ) . str_repeat( '<g>', 50 ) . '<rect></rect>' . str_repeat( '</g>', 50 ) ), $output );
+	}
+
 	public function test_values_on_elements_that_are_not_animations_are_ignored() {
 		$markup = $this->svg( '<filter><feColorMatrix values="javascript:x"/></filter>' );
 

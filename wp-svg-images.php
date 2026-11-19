@@ -10,6 +10,7 @@
 	Primary Branch: 	main
 	Text Domain:		wp-svg-images
 	Domain Path:		/languages
+	Requires PHP:		7.4
 */
 
 defined( 'ABSPATH' ) ||	exit;
@@ -20,8 +21,9 @@ defined( 'ABSPATH' ) ||	exit;
  * that loads earlier and ships the library through Composer (Safe SVG, for
  * example) supplies every sanitizer class and the bundled files are not read
  * at all. A plugin that loads later uses the bundled copy instead. The two
- * cases behave differently wherever the copies differ: the defects documented
- * in svg-sanitizer/ apply to the bundled copy only.
+ * cases behave differently wherever the copies differ: an older copy lacks
+ * the fixes of the bundled release and can throw where the bundled one
+ * returns false, which WPSVG::sanitize() treats the same way.
  */
 if( ! class_exists('enshrined\svgSanitize\Sanitizer') ){
 	require_once( 'svg-sanitizer/data/AttributeInterface.php' );
@@ -33,6 +35,7 @@ if( ! class_exists('enshrined\svgSanitize\Sanitizer') ){
 	require_once( 'svg-sanitizer/ElementReference/Subject.php' );
 	require_once( 'svg-sanitizer/ElementReference/Usage.php' );
 	require_once( 'svg-sanitizer/Exceptions/NestingException.php' );
+	require_once( 'svg-sanitizer/Exceptions/RegexException.php' );
 	require_once( 'svg-sanitizer/Helper.php' );
 	require_once( 'svg-sanitizer/Sanitizer.php' );
 }
@@ -202,25 +205,25 @@ if( ! class_exists('WPSVG') ){
 		}
 
 		/**
-		 * Supplies the SVG MIME type to WP All Import when it could not detect one.
+		 * Gives WP All Import imports the SVG type and sanitizes them.
 		 *
-		 * Hooked to `wp_all_import_image_mime_type`. Returns `image/svg+xml`
-		 * only when `$mime_type` is empty and the path ends in `.svg` or `.svgz`;
-		 * otherwise returns `$mime_type` unchanged. Upload permissions are not
-		 * checked here, so imports create SVG attachments whatever the
-		 * per-role settings say. WP All Import finds no type for SVG images
-		 * by itself: without this filter the attachment gets an empty MIME
-		 * type. Current releases sanitize `.svg` files on their own; every
-		 * release stores them with a lower-case extension.
+		 * WP All Import can't detect a type for SVGs, so `.svg` and `.svgz`
+		 * files without one get `image/svg+xml`. Any file that ends up with that
+		 * type is sanitized first; if that fails, the file is deleted (as WP All
+		 * Import does itself) and no type is returned. Role settings don't apply
+		 * here: every import is sanitized. Paths that aren't files are skipped.
+		 * WP All Import applies the filter to its own copy of the imported
+		 * file, in the uploads folder, right before it creates the attachment.
 		 *
+		 * @todo After a file is deleted here WP All Import still creates the
+		 *       attachment, with an empty MIME type and the path of the
+		 *       deleted file. Current releases sanitize `.svg` files
+		 *       themselves and skip them first, so this happens with older
+		 *       releases and with `.svgz`. The filter cannot stop the
+		 *       attachment; delete it on `wp_all_import_add_attachment` when
+		 *       its file is missing.
 		 * @todo The extension check is case-sensitive, so `logo.SVG` keeps an
 		 *       empty MIME type. Compare against strtolower( $image_filepath ).
-		 * @todo Nothing is sanitized here. Current WP All Import releases
-		 *       sanitize `.svg` files themselves, but older releases do not,
-		 *       and no release sanitizes `.svgz`, so with those an imported
-		 *       file gets the SVG type and keeps its scripts. Sanitize the
-		 *       file with sanitize() before reporting the type, or do not
-		 *       report a type for a file that could not be sanitized.
 		 *
 		 * @param string $mime_type      MIME type detected by WP All Import.
 		 * @param string $image_filepath Path of the imported image.
@@ -228,9 +231,18 @@ if( ! class_exists('WPSVG') ){
 		 */
 		function wp_all_import_svgs( $mime_type, $image_filepath ){
 			if( empty( $mime_type ) && ( substr( $image_filepath, -4 ) == '.svg' || substr( $image_filepath, -5 ) == '.svgz' ) ){
-				return 'image/svg+xml';
+				$svg_type = 'image/svg+xml';
+			}elseif( $mime_type === 'image/svg+xml' ){
+				$svg_type = $mime_type;
+			}else{
+				return $mime_type;
 			}
-			return $mime_type;
+
+			if( is_file( $image_filepath ) && ! $this->sanitize( $image_filepath ) ){
+				wp_delete_file( $image_filepath );
+				return '';
+			}
+			return $svg_type;
 		}
 
 		/**
@@ -375,10 +387,6 @@ if( ! class_exists('WPSVG') ){
 		 *       files), a role set to "disable SVG upload" uploads SVGs.
 		 *       Set `$file['error']` for SVG files from users without a
 		 *       non-zero permission.
-		 * @todo Exceptions thrown by the sanitizer (see sanitize()), for
-		 *       example for an XHTML page named `.svg`, are not caught and
-		 *       abort the upload request with a fatal error instead of
-		 *       setting `$file['error']`.
 		 *
 		 * @param array $file Single entry of `$_FILES` (`name`, `type`,
 		 *                    `tmp_name`, `error`, `size`).
@@ -407,7 +415,7 @@ if( ! class_exists('WPSVG') ){
 				$roles = (array)$user->roles;
 				$unrestricted = false;
 				foreach( $roles as $role ){
-					if( isset( $this->settings[ 'role_' . esc_attr( $role ) ] ) && intval( $this->settings[ 'role_' . esc_attr( $role ) ] ) === 2 ){
+					if( $this->role_permission( $role ) === 2 ){
 						$unrestricted = true;
 						break;
 					}
@@ -428,24 +436,22 @@ if( ! class_exists('WPSVG') ){
 		 * `WPSVG_setAllowedTags` and `WPSVG_setAllowedAttrs` filters on every
 		 * call. The sanitizer output then goes through clean_animations().
 		 * Disallowed elements and attributes are removed and the file is kept;
-		 * the method fails when the content cannot be decoded or parsed as
-		 * XML, and when nothing but an XML declaration is left, as for a root
-		 * element written with a prefix (`<x:svg>`, see Sanitizer::sanitize()).
+		 * the method fails when the content cannot be decoded, when the
+		 * sanitizer refuses it (see Sanitizer::sanitize()) or when it throws,
+		 * which older copies of the library can do. A failed file is left as
+		 * it was.
 		 * An empty file is "sanitized" to an empty string and reported as
 		 * success. Gzip content that cannot be decoded also raises a PHP
 		 * warning from gzdecode().
 		 *
-		 * @todo Well-formed XML whose root element is not `<svg>`, and an SVG
-		 *       in which a `<use>` references its own parent element, make the
-		 *       sanitizer throw a LogicException, which propagates to the
-		 *       caller. Catch Throwable here and return false.
 		 * @todo A path that cannot be read raises a PHP warning, then an empty
 		 *       file is written to that path and success is reported. Return
 		 *       false when file_get_contents() fails.
 		 *
 		 * @param string $file Absolute path of the file to sanitize.
 		 * @return bool True when the file was rewritten, false when it could
-		 *              not be decoded or parsed or has no root element left.
+		 *              not be decoded, parsed or sanitized or has no root
+		 *              element left.
 		 */
 		function sanitize( $file ){
 			$svg_code = file_get_contents( $file );
@@ -460,7 +466,11 @@ if( ! class_exists('WPSVG') ){
 			$this->sanitizer->setAllowedTags( new WPSVG_allowedTags() );
 			$this->sanitizer->setAllowedAttrs( new WPSVG_allowedAttrs() );
 
-			$clean_svg_code = $this->sanitizer->sanitize( $svg_code );
+			try{
+				$clean_svg_code = $this->sanitizer->sanitize( $svg_code );
+			}catch( \Throwable $e ){
+				return false;
+			}
 
 			if( $clean_svg_code !== false ){
 				$clean_svg_code = $this->clean_animations( $clean_svg_code );
@@ -506,6 +516,14 @@ if( ! class_exists('WPSVG') ){
 		 * `data:`, ignoring case, spaces and control characters, whatever
 		 * the target.
 		 *
+		 * The bundled library does part of this before the markup gets here:
+		 * it removes an `attributeName` that contains `href` and any of these
+		 * attributes whose value starts with a script or non-image `data:`
+		 * URL. Such an element arrives without the attribute and is kept,
+		 * harmless, often with no attributes left. The checks here still
+		 * cover the other targets, a script URL later in a list of values
+		 * (`0;javascript:...`) and older copies of the library.
+		 *
 		 * The default tag whitelist allows `animateColor`, `animateMotion`
 		 * and `animateTransform`; `animate` and `set` reach this method only
 		 * when a site adds them through the `WPSVG_setAllowedTags` filter.
@@ -539,8 +557,13 @@ if( ! class_exists('WPSVG') ){
 			libxml_use_internal_errors( $internal_errors );
 			if( ! $loaded || ! $dom->documentElement ) return false;
 
+			// One query for the animation elements only. Its result is a fixed list: a live list
+			// such as getElementsByTagName( '*' ) is searched from the start at every step before PHP 8.3.
+			$xpath = new DOMXPath( $dom );
+			$animations = $xpath->query( "//*[contains( '|" . implode( '|', array_keys( $allowed ) ) . "|', concat( '|', translate( local-name(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz' ), '|' ) )]" );
+
 			$unsafe = array();
-			foreach( $dom->getElementsByTagName( '*' ) as $element ){
+			foreach( $animations as $element ){
 				$name = strtolower( $element->localName );
 				if( ! isset( $allowed[ $name ] ) ) continue;
 				foreach( $element->attributes as $attribute ){
@@ -638,8 +661,8 @@ if( ! class_exists('WPSVG') ){
 		 * $settings.
 		 *
 		 * Hooked to `init`. Until it runs, every permission check treats all
-		 * roles as disabled. On a network every site has its own option, and a
-		 * site without one (every newly created site) allows no SVG uploads.
+		 * roles as disabled. On a network every site has its own option, and
+		 * a new site uses the role_permission() defaults until it is saved.
 		 *
 		 * @todo The settings are read once per request, so after
 		 *       switch_to_blog() the permission checks still use the settings
@@ -652,6 +675,27 @@ if( ! class_exists('WPSVG') ){
 		 */
 		function plugin_init(){
 			$this->settings = get_option('wpsvg_settings');
+		}
+
+		/**
+		 * Gets a role's SVG permission: 0 disabled, 1 sanitized, 2 unrestricted.
+		 *
+		 * Until the settings are saved once, roles that can upload files get 1,
+		 * which matches what the settings page shows. Before `init` it's 0.
+		 *
+		 * @param string $role Role slug.
+		 * @return int
+		 */
+		function role_permission( $role ){
+			if( is_array( $this->settings ) ){
+				$key = 'role_' . esc_attr( $role );
+				return isset( $this->settings[ $key ] ) ? intval( $this->settings[ $key ] ) : 0;
+			}
+			if( $this->settings === null ){
+				return 0;
+			}
+			$role_object = get_role( $role );
+			return ( $role_object && $role_object->has_cap( 'upload_files' ) ) ? 1 : 0;
 		}
 
 		/**
@@ -670,11 +714,9 @@ if( ! class_exists('WPSVG') ){
 		 * the campaign banner (`.shortpixel-bf`, see promo_banner()) under
 		 * the heading when one shows.
 		 *
-		 * @todo A role without a saved value is displayed as "enable sanitized
-		 *       SVG upload", but add_svg_mime() and wp_check_filetype_and_ext()
-		 *       treat a missing value as disabled, so a fresh install blocks
-		 *       SVG uploads until the form is saved. Apply the same default
-		 *       (1) in the permission checks, or show "disable" here.
+		 * @todo Once settings are saved, a role added later still shows as
+		 *       "sanitized" but role_permission() treats it as disabled. Show
+		 *       "disable" for it instead.
 		 * @todo Posted values are saved for any `role_*` key, including roles
 		 *       that do not exist or lack `upload_files`, and are not limited
 		 *       to 0, 1 and 2. Whitelist the keys against $wp_roles and clamp
@@ -908,7 +950,7 @@ if( ! class_exists('WPSVG') ){
 			$user = wp_get_current_user();
 			$roles = (array)$user->roles;
 			foreach( $roles as $role ){
-				if( isset( $this->settings[ 'role_' . esc_attr( $role ) ] ) && intval( $this->settings[ 'role_' . esc_attr( $role ) ] ) ){
+				if( $this->role_permission( $role ) ){
 					if( substr( $filename, -4 ) == '.svg' ){
 						$filetype_ext_data['ext'] = 'svg';
 						$filetype_ext_data['type'] = 'image/svg+xml';
@@ -1015,7 +1057,7 @@ if( ! class_exists('WPSVG') ){
 		 *
 		 * Hooked to `upload_mimes`. This is the permission gate: the
 		 * extensions are added when any of the current user's roles has a
-		 * non-zero permission (sanitized or unrestricted). Users with no
+		 * non-zero permission (see role_permission()). Users with no
 		 * matching role, including logged-out requests and WP-CLI without
 		 * `--user`, get the list unchanged. On a network the extensions are
 		 * added after WordPress has reduced the list to the network's
@@ -1033,7 +1075,7 @@ if( ! class_exists('WPSVG') ){
 			$user = wp_get_current_user();
 			$roles = (array)$user->roles;
 			foreach( $roles as $role ){
-				if( isset( $this->settings[ 'role_' . esc_attr( $role ) ] ) && intval( $this->settings[ 'role_' . esc_attr( $role ) ] ) ){
+				if( $this->role_permission( $role ) ){
 					$mimes['svg'] = 'image/svg+xml';
 					$mimes['svgz'] = 'image/svg+xml';
 					break;
@@ -1088,9 +1130,12 @@ if( ! class_exists('WPSVG') ){
 		 * exists, both are taken from its third and fourth values. Returns
 		 * zeros when the file cannot be read or parsed; PHP warnings are then
 		 * raised by simplexml_load_file() unless libxml internal errors are
-		 * enabled. The root element does not have to be `<svg>`, a negative
-		 * value is returned as it is, and a `width` without a `height` (or the
-		 * reverse) is ignored.
+		 * enabled. The bundled sanitizer restores that setting when it is
+		 * done, so a gzipped upload raises these warnings; an older copy of
+		 * the library leaves internal errors enabled, which hides them for
+		 * the rest of the request. The root element does not have to be
+		 * `<svg>`, a negative value is returned as it is, and a `width`
+		 * without a `height` (or the reverse) is ignored.
 		 *
 		 * @todo The `viewBox` is split on single spaces only, so a viewBox
 		 *       using commas or repeated whitespace (both valid) yields wrong
