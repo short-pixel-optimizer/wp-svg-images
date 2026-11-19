@@ -15,8 +15,11 @@ class TemplateTest extends WP_UnitTestCase {
 	/** Translation template, relative to the plugin folder. */
 	const TEMPLATE = 'languages/wp-svg-images.pot';
 
+	/** The bundled promo banner, whose strings the build gives the plugin's text domain. */
+	const BANNER = 'build/shortpixel/promo-banner/src/PromoBanner.php';
+
 	/** PHP files of the plugin that contain translatable strings. */
-	const SOURCES = array( 'wp-svg-images.php', 'upsell.php' );
+	const SOURCES = array( 'wp-svg-images.php', 'upsell.php', self::BANNER );
 
 	/**
 	 * @return string Plugin folder with trailing slash.
@@ -115,11 +118,12 @@ class TemplateTest extends WP_UnitTestCase {
 
 	/* The plugin's strings. */
 
-	public function test_plugin_has_translatable_strings_in_both_source_files() {
+	public function test_plugin_has_translatable_strings_in_every_source_file() {
 		$files = array_count_values( array_column( $this->calls(), 'file' ) );
 
 		$this->assertGreaterThan( 15, $files['wp-svg-images.php'] );
 		$this->assertGreaterThan( 3, $files['upsell.php'] );
+		$this->assertSame( 10, $files[ self::BANNER ] );
 	}
 
 	public function test_every_translation_call_uses_a_plain_string_and_the_plugins_text_domain() {

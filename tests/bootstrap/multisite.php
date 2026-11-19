@@ -25,6 +25,15 @@ define( 'WPSVG_TESTS_FIXTURES_DIR', dirname( __DIR__ ) . '/fixtures/' );
 
 require $wpsvg_tests_lib . '/includes/functions.php';
 
+/*
+ * No promo campaign runs during the tests: the banner (build/shortpixel/
+ * promo-banner) shows only inside its date window, so without this the
+ * settings page would depend on the day the suite runs. A test about the
+ * banner opens the window with a later `__return_true` on the same filter,
+ * or removes this one.
+ */
+tests_add_filter( 'wpsvg/promo_banner/in_window', '__return_false' );
+
 // Network activation is the `active_sitewide_plugins` network option; answer
 // it through its filter so WordPress loads the plugin for every site, like
 // after "Network Activate". The per-site list stays empty.

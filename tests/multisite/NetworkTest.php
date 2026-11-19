@@ -268,6 +268,53 @@ class NetworkTest extends WPSVGIntegrationTestCase {
 		$this->assertSame( '', $html, 'User meta is shared by all sites of the network' );
 	}
 
+	/* The promo banner. */
+
+	/**
+	 * A dismissal is stored in an option of the site, so it hides the
+	 * campaign on that site only.
+	 */
+	public function test_dismissing_the_promo_banner_counts_on_that_site_only() {
+		$user_id = $this->user_with_roles( 'administrator', array( $this->second_site => 'administrator' ) );
+		add_filter( 'wpsvg/promo_banner/in_window', '__return_true', 20 );
+		$this->request_on( get_main_site_id(), $user_id );
+		do_action( 'admin_menu' );
+		set_current_screen( $this->plugin()->plugin_admin_page );
+		$this->plugin()->promo_banner();
+		$banner = $this->plugin()->promo_banner;
+		$this->assertTrue( $banner->shouldShow() );
+
+		update_option( 'wpsvg-promo-banner', array( 'black-friday-2026' => time() ), false );
+		$on_main = $banner->shouldShow();
+		restore_current_blog();
+		$this->request_on( $this->second_site, $user_id );
+		$on_second = $banner->shouldShow();
+
+		$this->plugin()->plugin_admin_page = null;
+		$this->plugin()->promo_banner      = null;
+		$this->assertFalse( $on_main );
+		$this->assertTrue( $on_second );
+		$this->assertFalse( get_site_option( 'wpsvg-promo-banner' ), 'Nothing is stored for the network' );
+	}
+
+	/**
+	 * Pins the defect documented in uninstall.php: deleting the plugin
+	 * removes the banner's dismissals on the site the deletion runs on
+	 * only. When fixed, the option is gone on every site.
+	 *
+	 * @group pinned
+	 */
+	public function test_uninstall_keeps_the_promo_banner_dismissals_of_other_sites_pinned_for_deferred_fix() {
+		$dismissal = array( 'black-friday-2026' => 1 );
+		update_option( 'wpsvg-promo-banner', $dismissal, false );
+		update_blog_option( $this->second_site, 'wpsvg-promo-banner', $dismissal );
+
+		uninstall_plugin( self::BASENAME );
+
+		$this->assertFalse( get_option( 'wpsvg-promo-banner' ) );
+		$this->assertSame( $dismissal, get_blog_option( $this->second_site, 'wpsvg-promo-banner' ) );
+	}
+
 	public function test_deleting_a_site_removes_its_settings_with_its_tables() {
 		global $wpdb;
 		$this->save_permissions_on( $this->second_site, array( 'author' => 1 ) );

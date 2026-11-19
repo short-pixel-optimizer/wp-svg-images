@@ -12,7 +12,7 @@ checkpoint. The decisions from §7 are recorded there.
 | Item | Finding |
 |---|---|
 | Language | PHP (plugin + bundled library), one small jQuery script, one minified CSS file |
-| Framework | WordPress plugin API (actions and filters); no Composer, no autoloader, no build step |
+| Framework | WordPress plugin API (actions and filters); no autoloader or build step for the plugin's own code. The shared `promo-banner` module is generated into `build/shortpixel/` by the root `composer.json` and loaded through its own autoloader |
 | Declared runtime | `readme.txt`: *Requires at least* WP 3.0.1, *Requires PHP* 7.4, *Tested up to* WP 7.0 |
 | Actual runtime floor | PHP 7.4, as declared (the bundled library itself needs 7.1: return types, `yield from`, `\Throwable`); WP 5.0+ for the `render_block` integration |
 | Entry point | `wp-svg-images.php` — plugin header, `require_once` of the bundled sanitizer, three classes, `new WPSVG()` at load time |
@@ -226,7 +226,10 @@ Suite names are exact and lowercase: `unit`, `integration`, `compat`,
   metadata; `wp_prepare_attachment_for_js`; `render_block`; admin notice
   visibility per screen and capability; AJAX dismissal (`WP_Ajax_UnitTestCase`);
   upsell asset enqueueing with SPIO present/absent; output-buffer template
-  rewrite on a real admin request; uninstall leftovers (option, user meta).
+  rewrite on a real admin request; uninstall leftovers (option, user meta);
+  the promo banner: the bundled module's show conditions and markup, the
+  plugin's campaign, screen, capability and assets, its place on the settings
+  page, the dismiss request and its removal on uninstall.
 - **Tooling:** WP PHPUnit library (`WP_UnitTestCase`), real uploads directory
   under the test install.
 - **Done when:** every user-facing action is covered from input to persisted
@@ -260,9 +263,9 @@ In order of user impact:
 
 | Suite | Own bootstrap | Scope | Size |
 |---|---|---|---:|
-| `multisite` | `WP_TESTS_MULTISITE=1` | Per-site settings isolation; super admin without a role on a subsite; network-activated plugin; `upload_filetypes` site option interplay | ~15 |
+| `multisite` | `WP_TESTS_MULTISITE=1` | Promo banner dismissal per site; Per-site settings isolation; super admin without a role on a subsite; network-activated plugin; `upload_filetypes` site option interplay | ~15 |
 | `cli` | WP-CLI inside the php container | `wp media import` of svg/svgz with no current user and with `--user`; activation via CLI (redirect flag left behind) | ~8 |
-| `l10n` | Loads a test locale | Text domain loads from `languages/`; every translatable string in PHP exists in `wp-svg-images.pot` (catches stale templates) | ~5 |
+| `l10n` | Loads a test locale | Text domain loads from `languages/`; every translatable string in PHP, the bundled promo banner included, exists in `wp-svg-images.pot` (catches stale templates) | ~5 |
 
 - **Risk:** CLI and multisite each change who "the current user" is, which is
   exactly what the upload gate keys on — high-value, easy to get wrong.
@@ -284,6 +287,9 @@ In order of user impact:
   5. Admin notice: shown on the four screens, dismissal persists across reloads.
   6. Upsell box: install → activate state transitions (stubbed responses).
   7. Front end: image block outputs width/height for an SVG.
+  8. Promo banner: shown on the settings page while the campaign runs, styled
+     and within a narrow window, absent elsewhere and outside the campaign;
+     closing it lasts across reloads.
 - **Waits:** on WordPress's own signals (upload progress element removed,
   attachment `li` with `data-id`, REST response promises) — never on time.
 - **Previews:** no pixel snapshots. The tests check that the preview image

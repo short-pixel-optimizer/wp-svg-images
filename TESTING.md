@@ -128,6 +128,8 @@ assertions look at exit code, output, and the files and rows the command left.
 - **`TemplateTest`** compares the translatable strings in the PHP sources with
   `languages/wp-svg-images.pot`. `tests/l10n/TranslatableStrings.php` extracts both
   sides with PHP's tokenizer; add new source files to `TemplateTest::SOURCES`.
+  The bundled promo banner (`build/shortpixel/`) is one of the sources: after
+  a module rebuild, regenerate the template.
 - **`TextDomainTest`** switches the site to the locale `xx_XX` and answers the
   translation file WordPress asks for with one generated during the test. The
   language pack test writes a real file to `WP_LANG_DIR/plugins` and clears
@@ -156,6 +158,12 @@ specs and applies the same zero-test guard as for the other suites. The
   role (`admin`, `editor`, `author`, `contributor`, `subscriber`, password
   `password`) and sets the plugin's state and settings. `siteState()` reads
   options, stored files and metadata. Call `resetSite()` before each test.
+- **Promo banner:** the helper plugin keeps the campaign window closed unless
+  the test resets the site with `campaign: true`, so no spec depends on the
+  date. The banner's script does not read the answer of its dismiss request;
+  wait for the response status and check `banner_dismissals` in
+  `siteState()`, not the response body, which never finishes loading for
+  Playwright.
 - **No network:** Node packages are installed by the `e2e-setup` service
   before the run. The helper plugin answers WordPress's own outbound requests
   with an empty success, so update checks print no warnings.
@@ -358,6 +366,23 @@ List them with `bin/test.sh all --group pinned`. Lifecycle rules: `CLAUDE.md`,
   `deactivate_plugins()` do not change what WordPress reads. Add a later
   filter, or remove the filters for one test; see `UpsellTest` and
   `UninstallTest`.
+- **The promo banner shows only inside its campaign window**, so the
+  `integration`, `l10n`, `multisite` and `compat` bootstraps close the window
+  for every test (`wpsvg/promo_banner/in_window` returns false at priority
+  10). A test about the banner adds `__return_true` at a later priority
+  (`PromoBannerTest::open_window()`) or removes the bootstrap filter
+  (`PromoBannerModuleTest`, which drives the window through `start`/`end`).
+- **The banner exists only after `admin_init`.** `WPSVG::$promo_banner` is
+  null until `WPSVG::promo_banner()` ran; tests call that method directly
+  and set the property back to null in `tear_down()`. The screen ID of the
+  settings page differs between the test environment and a real admin
+  request; read it from `WPSVG::$plugin_admin_page` after `admin_menu`.
+- **WordPress includes `uninstall.php` once per PHP process.** A second
+  `uninstall_plugin()` call in the same process does not run it again; the
+  test that needs the deletion runs in its own process (`UninstallTest`).
+- **`build/shortpixel/` is generated.** `PromoBannerBuildTest` (`unit`)
+  checks the namespace, hook prefix and text domain of the copy; when it
+  fails, rebuild (see `CLAUDE.md`), do not edit the copy.
 - **Roles outlive the database rollback.** `add_role()` also changes the
   roles WordPress holds in memory; remove test roles in `tear_down()`.
 - **`upsell.php` is loaded with `include_once`.** The settings page prints the

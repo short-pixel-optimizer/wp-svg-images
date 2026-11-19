@@ -42,18 +42,35 @@ class UninstallTest extends WPSVGIntegrationTestCase {
 	}
 
 	/**
-	 * Pins the defect documented on the WPSVG class: the plugin has no
-	 * uninstall routine, so deleting it leaves its options and user meta
-	 * behind. When fixed, WordPress reports the plugin as uninstallable and
-	 * the uninstall removes all three.
+	 * Deleting the plugin removes the promo banner's dismissals.
+	 *
+	 * WordPress includes uninstall.php once per PHP process, so the test
+	 * runs in its own.
+	 *
+	 * @runInSeparateProcess
+	 * @preserveGlobalState disabled
+	 */
+	public function test_uninstall_deletes_the_promo_banner_dismissals() {
+		update_option( 'wpsvg-promo-banner', array( 'black-friday-2026' => time() ), false );
+		$this->assertTrue( is_uninstallable_plugin( self::BASENAME ) );
+
+		uninstall_plugin( self::BASENAME );
+
+		$this->assertFalse( get_option( 'wpsvg-promo-banner' ) );
+	}
+
+	/**
+	 * Pins the defect documented in uninstall.php: the uninstall routine
+	 * deletes only the promo banner's option, so deleting the plugin leaves
+	 * its own options and user meta behind. When fixed, the uninstall
+	 * removes all three.
 	 *
 	 * @group pinned
 	 */
 	public function test_uninstall_leaves_options_and_user_meta_behind_pinned_for_deferred_fix() {
 		$user_id = $this->leave_plugin_data();
 
-		$this->assertFileDoesNotExist( WP_PLUGIN_DIR . '/wp-svg-images/uninstall.php' );
-		$this->assertFalse( is_uninstallable_plugin( self::BASENAME ) );
+		$this->assertTrue( is_uninstallable_plugin( self::BASENAME ) );
 		uninstall_plugin( self::BASENAME );
 
 		$this->assertSame( array( 'role_author' => 1 ), get_option( 'wpsvg_settings' ) );

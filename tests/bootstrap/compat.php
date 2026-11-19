@@ -114,6 +114,15 @@ if ( '' === $wpsvg_skip_reason ) {
 
 require $wpsvg_tests_lib . '/includes/functions.php';
 
+/*
+ * No promo campaign runs during the tests: the banner (build/shortpixel/
+ * promo-banner) shows only inside its date window, so without this the
+ * settings page would depend on the day the suite runs. A test about the
+ * banner opens the window with a later `__return_true` on the same filter,
+ * or removes this one.
+ */
+tests_add_filter( 'wpsvg/promo_banner/in_window', '__return_false' );
+
 // Activate through the active_plugins option so WordPress loads the plugins
 // itself, in this order, like on a real site.
 $GLOBALS['wp_tests_options'] = array(

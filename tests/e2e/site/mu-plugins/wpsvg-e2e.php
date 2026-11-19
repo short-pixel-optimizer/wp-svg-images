@@ -44,6 +44,16 @@ add_filter(
 	3
 );
 
+// The promo banner shows only inside its campaign window. Here the window
+// is open exactly when a test asked for it, so no test depends on the day
+// it runs.
+add_filter(
+	'wpsvg/promo_banner/in_window',
+	static function () {
+		return (bool) get_option( 'wpsvg_e2e_campaign' );
+	}
+);
+
 add_action(
 	'rest_api_init',
 	static function () {
@@ -73,11 +83,12 @@ add_action(
  *
  * Body (JSON): `plugin` ("active" or "inactive", default "active"),
  * `settings` (role slug => 0, 1 or 2; null or missing deletes the option, as
- * on a fresh install) and `activated` (true leaves the one-shot redirect flag
- * in place, as right after activation).
+ * on a fresh install), `activated` (true leaves the one-shot redirect flag
+ * in place, as right after activation) and `campaign` (true makes the promo
+ * banner's campaign run; it does not run otherwise).
  *
- * Deletes every attachment and post, the plugin's options and the dismissed
- * notice of every user, makes sure one user per role exists with exactly
+ * Deletes every attachment and post, the plugin's options, the promo
+ * banner's dismissals and the dismissed notice of every user, makes sure one user per role exists with exactly
  * that role (`admin`, `editor`, `author`, `contributor` and `subscriber`)
  * and switches the block editor's welcome guide off for them.
  *
@@ -130,6 +141,11 @@ function wpsvg_e2e_reset( WP_REST_Request $request ) {
 
 	delete_option( 'wpsvg_settings' );
 	delete_option( 'WPSVGActivated' );
+	delete_option( 'wpsvg-promo-banner' );
+	delete_option( 'wpsvg_e2e_campaign' );
+	if ( $request->get_param( 'campaign' ) ) {
+		update_option( 'wpsvg_e2e_campaign', 1 );
+	}
 
 	$settings = $request->get_param( 'settings' );
 	if ( is_array( $settings ) ) {
@@ -157,7 +173,8 @@ function wpsvg_e2e_reset( WP_REST_Request $request ) {
  * Reports what the tests cannot see in the browser.
  *
  * @return array `wp_version`, `php_version`, `plugin_active`, `settings`,
- *               `activation_flag` and `attachments` (ID, MIME type, file
+ *               `activation_flag`, `banner_dismissals` (campaign IDs) and
+ *               `attachments` (ID, MIME type, file
  *               path relative to the uploads folder, stored content and
  *               metadata of each).
  */
@@ -179,11 +196,12 @@ function wpsvg_e2e_state() {
 	}
 
 	return array(
-		'wp_version'      => $GLOBALS['wp_version'],
-		'php_version'     => PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION,
-		'plugin_active'   => is_plugin_active( WPSVG_E2E_PLUGIN ),
-		'settings'        => get_option( 'wpsvg_settings', null ),
-		'activation_flag' => get_option( 'WPSVGActivated', null ),
-		'attachments'     => $attachments,
+		'wp_version'        => $GLOBALS['wp_version'],
+		'php_version'       => PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION,
+		'plugin_active'     => is_plugin_active( WPSVG_E2E_PLUGIN ),
+		'settings'          => get_option( 'wpsvg_settings', null ),
+		'activation_flag'   => get_option( 'WPSVGActivated', null ),
+		'banner_dismissals' => array_keys( (array) get_option( 'wpsvg-promo-banner', array() ) ),
+		'attachments'       => $attachments,
 	);
 }

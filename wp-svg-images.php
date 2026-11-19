@@ -40,6 +40,16 @@ if( ! class_exists('enshrined\svgSanitize\Sanitizer') ){
 	require_once( 'svg-sanitizer/Sanitizer.php' );
 }
 
+/*
+ * Shared ShortPixel modules. build/shortpixel/ is generated from the modules
+ * repository by `composer update` (composer.json: namespace `ShortPixel\SVG\`,
+ * hook prefix `wpsvg/`, this plugin's text domain), so this copy never shares
+ * a class, hook or option with the copy another ShortPixel plugin bundles.
+ * autoload.php registers the autoloader for them; nothing is loaded until
+ * used. Only the promo banner is bundled.
+ */
+require_once __DIR__ . '/build/shortpixel/autoload.php';
+
 /**
  * Tag whitelist used by the plugin's sanitizer, extensible through a filter.
  *
@@ -101,12 +111,23 @@ if( ! class_exists('WPSVG') ){
 	 * flag on the site the activation request ran on only, so after a network
 	 * activation only that site's administrators are redirected.
 	 *
-	 * @todo The plugin has no uninstall routine, so deleting it leaves the
-	 *       `wpsvg_settings` option, a pending `WPSVGActivated` option and
-	 *       the `wpsvg_notice_dismissed` user meta in the database. Add an
-	 *       uninstall.php that deletes them.
+	 * The campaign banner of the bundled `promo-banner` module is set up on
+	 * `admin_init` (promo_banner()) and printed on the settings page. Its
+	 * dismissals are stored per site in the `wpsvg-promo-banner` option
+	 * (campaign id => dismissal time), which uninstall.php deletes.
+	 *
+	 * @todo uninstall.php deletes only the promo banner's option, so deleting
+	 *       the plugin leaves the `wpsvg_settings` option, a pending
+	 *       `WPSVGActivated` option and the `wpsvg_notice_dismissed` user
+	 *       meta in the database. Delete them in uninstall.php as well.
 	 */
 	class WPSVG{
+		/**
+		 * Prefix of the promo banner: names its dismissals option
+		 * (`wpsvg-promo-banner`), its AJAX action and its asset handle.
+		 */
+		const PROMO_BANNER_PREFIX = 'wpsvg';
+
 		/**
 		 * Hook suffix of the settings page, as returned by add_submenu_page().
 		 *
@@ -144,6 +165,14 @@ if( ! class_exists('WPSVG') ){
 		var $spio_active = false;
 
 		/**
+		 * The current campaign banner. Null until `admin_init`, so also on
+		 * every front-end request.
+		 *
+		 * @var \ShortPixel\SVG\PromoBanner\PromoBanner|null
+		 */
+		var $promo_banner;
+
+		/**
 		 * Creates the sanitizer and registers every action and filter used
 		 * by the plugin.
 		 */
@@ -171,6 +200,7 @@ if( ! class_exists('WPSVG') ){
 			add_action( 'wp_ajax_wpsvg_notice_dismissed', array( $this, 'wpsvg_notice_dismissed' ) );
 
 			add_action( 'admin_init', array( $this, 'upsell' ) );
+			add_action( 'admin_init', array( $this, 'promo_banner' ) );
 			add_filter( 'wp_all_import_image_mime_type', array( $this, 'wp_all_import_svgs' ), 10, 2 );
 		}
 
@@ -234,6 +264,48 @@ if( ! class_exists('WPSVG') ){
 				wp_enqueue_style( 'spio-upsell', plugins_url( '/assets/css/spio-upsell.css', __FILE__ ) );
 				wp_enqueue_script( 'spio-upsell', plugins_url( '/assets/js/spio-upsell.js', __FILE__ ), array('jquery') );
 			}
+		}
+
+		/**
+		 * Creates and registers the campaign banner of the `promo-banner`
+		 * module bundled in build/shortpixel/.
+		 *
+		 * Hooked to `admin_init`, so it runs on admin pages and on
+		 * admin-ajax.php requests, where the banner's close button posts its
+		 * dismissal (`wp_ajax_wpsvg_promo_banner_dismiss`). The banner shows
+		 * on the plugin's settings page only, inside the campaign window, to
+		 * users with `manage_options`, until one of them dismisses it for the
+		 * whole site. The module's class docblock lists every condition and
+		 * filter; its hooks carry this plugin's prefix, for example
+		 * `wpsvg/promo_banner/show` and `wpsvg/settings/no_banner`. Its
+		 * stylesheet and script are enqueued only where it shows.
+		 *
+		 * With `hook` false the module prints nothing by itself:
+		 * admin_options_page() prints the banner right under its heading, so
+		 * WordPress does not move it like an admin notice.
+		 *
+		 * @return void
+		 */
+		function promo_banner(){
+			$plugin = $this;
+			$this->promo_banner = new \ShortPixel\SVG\PromoBanner\PromoBanner( array(
+				'id'         => 'black-friday-2026',
+				'start'      => strtotime( '2026-11-23 00:00:00 UTC' ),
+				'end'        => strtotime( '2026-12-01 07:59:59 UTC' ), // 23:59:59 US Pacific on the 30th
+				'ends_on'    => '2026-11-30',                           // the day the banner prints
+				'url'        => 'https://shortpixel.com/pricing?utm_source=plugin&utm_medium=wpsvg&utm_campaign=top_banner_bf2026',
+				'prefix'     => self::PROMO_BANNER_PREFIX,
+				'assets_url' => plugins_url( '/build/shortpixel/promo-banner/assets/', __FILE__ ),
+				'version'    => '1.0',
+				'screens'    => array(),
+				'condition'  => function() use ( $plugin ){
+					$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+					return $screen && $plugin->plugin_admin_page && $screen->id == $plugin->plugin_admin_page;
+				},
+				'capability' => 'manage_options',
+				'hook'       => false,
+			) );
+			$this->promo_banner->register();
 		}
 
 		/**
@@ -638,7 +710,9 @@ if( ! class_exists('WPSVG') ){
 		 * returns at once on any other screen. Lists only roles that
 		 * have the `upload_files` capability; a role without a saved value is
 		 * shown as "enable sanitized SVG upload". Includes upsell.php when
-		 * ShortPixel Image Optimizer is not installed or not active.
+		 * ShortPixel Image Optimizer is not installed or not active. Prints
+		 * the campaign banner (`.shortpixel-bf`, see promo_banner()) under
+		 * the heading when one shows.
 		 *
 		 * @todo Once settings are saved, a role added later still shows as
 		 *       "sanitized" but role_permission() treats it as disabled. Show
@@ -674,6 +748,8 @@ if( ! class_exists('WPSVG') ){
 			} ?>
 			<div class="wrap">
 				<h2><?php _e( 'SVG images', 'wp-svg-images' ) ?></h2>
+
+				<?php if( is_object( $this->promo_banner ) ) $this->promo_banner->render(); ?>
 
 				<?php if( $show_update_notice ) echo '<div class="below-h2 updated"><p>' . __( 'Settings saved.', 'wp-svg-images' ) . '</p></div>'; ?>
 
