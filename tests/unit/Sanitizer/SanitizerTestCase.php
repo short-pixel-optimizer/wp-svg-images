@@ -22,8 +22,9 @@ abstract class SanitizerTestCase extends TestCase {
 	protected $sanitizer;
 
 	/**
-	 * The sanitizer leaves libxml's internal error handling switched on (see
-	 * the pinned test in SanitizerTest); undo that so tests stay independent.
+	 * The sanitizer restores libxml's internal error handling (see
+	 * SanitizerTest); reset it anyway so a failing test cannot affect the
+	 * next one.
 	 */
 	protected function tear_down() {
 		libxml_clear_errors();

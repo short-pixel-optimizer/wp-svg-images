@@ -119,28 +119,6 @@ class XPathTest extends TestCase {
 	}
 
 	/**
-	 * The root is recognised by its local name, so a prefixed root is
-	 * accepted and its namespace becomes the one behind the `svg` prefix.
-	 */
-	public function test_accepts_a_prefixed_root_svg_and_registers_its_namespace() {
-		$xml   = '<x:svg xmlns:x="' . self::SVG_NS . '"><x:use/><use/></x:svg>';
-		$xpath = new XPath( $this->document( $xml ) );
-
-		$this->assertSame( 'svg:use', $xpath->createNodeName( 'use' ) );
-		$this->assertSame( 1, $xpath->query( '//svg:use' )->length );
-	}
-
-	/**
-	 * The namespace of a prefixed root is not checked either.
-	 */
-	public function test_accepts_a_prefixed_root_svg_in_a_foreign_namespace() {
-		$xml   = '<x:svg xmlns:x="http://example.com/x"><x:use/></x:svg>';
-		$xpath = new XPath( $this->document( $xml ) );
-
-		$this->assertSame( 1, $xpath->query( '//svg:use' )->length );
-	}
-
-	/**
 	 * @dataProvider provide_documents_without_a_root_svg
 	 */
 	public function test_throws_when_the_root_element_is_not_svg( $xml ) {
@@ -158,6 +136,7 @@ class XPathTest extends TestCase {
 			'html root'                  => array( '<html><body/></html>' ),
 			'svg nested in another root' => array( '<html><svg xmlns="' . self::SVG_NS . '"/></html>' ),
 			'upper-case root'            => array( '<SVG xmlns="' . self::SVG_NS . '"/>' ),
+			'prefixed root'              => array( '<x:svg xmlns:x="' . self::SVG_NS . '"/>' ),
 		);
 	}
 

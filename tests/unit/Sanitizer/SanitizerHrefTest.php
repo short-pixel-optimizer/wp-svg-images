@@ -6,7 +6,8 @@ require_once __DIR__ . '/SanitizerTestCase.php';
  * Sanitizer: which link targets survive in `href` and `xlink:href`.
  *
  * The rule is a whitelist of beginnings: empty, `#`, `/`, `http://`,
- * `https://` and a few `data:` image types. Everything else is removed.
+ * `https://` and a few `data:` image types. Everything else is removed,
+ * as is an `xlink:href` outside the XLink namespace.
  */
 class SanitizerHrefTest extends SanitizerTestCase {
 
@@ -44,7 +45,6 @@ class SanitizerHrefTest extends SanitizerTestCase {
 				'data:image/jpg;base64,AAAA',
 				'data:image/jpeg;base64,AAAA',
 				'data:image/pjpeg;base64,AAAA',
-				'data:img/png;base64,AAAA',
 			)
 		);
 	}
@@ -66,7 +66,7 @@ class SanitizerHrefTest extends SanitizerTestCase {
 		$inner = $this->sanitize_inner( "<a xlink:href=\"$target\"><rect/></a>", self::XLINK_NS );
 
 		$this->assertSame( '<a><rect></rect></a>', $inner );
-		$this->assertSame( array( "Suspicious attribute 'href'" ), $this->issue_messages() );
+		$this->assertSame( array( "Suspicious attribute 'xlink:href'" ), $this->issue_messages() );
 	}
 
 	public function provide_unsafe_targets() {
@@ -81,6 +81,7 @@ class SanitizerHrefTest extends SanitizerTestCase {
 			'data html'                      => array( 'data:text/html,&lt;script&gt;alert(1)&lt;/script&gt;' ),
 			'data svg image'                 => array( 'data:image/svg+xml;base64,AAAA' ),
 			'data without a type'            => array( 'data:,x' ),
+			'data with a non-image type'     => array( 'data:img/png;base64,AAAA' ),
 			'data scheme in upper case'      => array( 'DATA:image/png;base64,AAAA' ),
 			'https in upper case'            => array( 'HTTPS://example.org/' ),
 			'ftp'                            => array( 'ftp://example.org/' ),
@@ -107,7 +108,7 @@ class SanitizerHrefTest extends SanitizerTestCase {
 		$inner = $this->sanitize_inner( '<a href="javascript:a()" xlink:href="javascript:b()"/>', self::XLINK_NS );
 
 		$this->assertSame( '<a></a>', $inner );
-		$this->assertSame( array_fill( 0, 2, "Suspicious attribute 'href'" ), $this->issue_messages() );
+		$this->assertSame( array( "Suspicious attribute 'href'", "Suspicious attribute 'xlink:href'" ), $this->issue_messages() );
 	}
 
 	/**
@@ -121,39 +122,29 @@ class SanitizerHrefTest extends SanitizerTestCase {
 
 	/**
 	 * With no declaration for the prefix the attribute is literally named
-	 * `xlink:href`; it is checked like any attribute with "href" in its name.
+	 * `xlink:href`. HTML still reads it as a link, so it goes whatever the
+	 * target.
+	 *
+	 * @dataProvider provide_targets_of_an_undeclared_xlink_href
 	 */
-	public function test_removes_unsafe_xlink_href_when_the_prefix_is_not_declared() {
-		$inner = $this->sanitize_inner( '<a xlink:href="javascript:alert(1)"/>' );
+	public function test_removes_xlink_href_when_the_prefix_is_not_declared( $target ) {
+		$inner = $this->sanitize_inner( "<a xlink:href=\"$target\"/>" );
 
 		$this->assertSame( '<a></a>', $inner );
-		$this->assertSame( array( "Suspicious attribute 'href'" ), $this->issue_messages() );
+		$this->assertSame( array( "Unexpected attribute 'xlink:href'" ), $this->issue_messages() );
 	}
 
-	public function test_keeps_safe_xlink_href_when_the_prefix_is_not_declared() {
-		$markup = '<a xlink:href="#target"></a>';
-
-		$this->assertSame( $markup, $this->sanitize_inner( $markup ) );
+	public function provide_targets_of_an_undeclared_xlink_href() {
+		return $this->keyed( array( 'javascript:alert(1)', '#target' ) );
 	}
 
 	/**
-	 * Pins a defect in Sanitizer::cleanAttributesOnWhitelist(): when the
-	 * `xlink` prefix is bound to a namespace other than XLink, the attribute
-	 * is neither in the XLink namespace nor found by its local name, so a
-	 * `javascript:` target is kept. An XML parser does not treat it as a
-	 * link, but an HTML parser does when the SVG is inlined in a page.
-	 *
-	 * Fixed when the attribute is removed; this test then fails and becomes
-	 * a regression test asserting `<a></a>`.
-	 *
-	 * @group pinned
+	 * An `xlink:href` bound to another namespace still acts as a link once
+	 * the SVG is inlined in HTML.
 	 */
-	public function test_javascript_xlink_href_survives_when_prefix_is_bound_to_another_namespace_pinned_for_deferred_fix() {
-		$markup = '<a xlink:href="javascript:alert(1)"></a>';
+	public function test_removes_xlink_href_when_the_prefix_is_bound_to_another_namespace() {
+		$inner = $this->sanitize_inner( '<a xlink:href="javascript:alert(1)"></a>', 'xmlns:xlink="http://example.org/not-xlink"' );
 
-		$inner = $this->sanitize_inner( $markup, 'xmlns:xlink="http://example.org/not-xlink"' );
-
-		$this->assertSame( $markup, $inner );
-		$this->assertSame( array(), $this->issue_messages() );
+		$this->assertSame( '<a></a>', $inner );
 	}
 }

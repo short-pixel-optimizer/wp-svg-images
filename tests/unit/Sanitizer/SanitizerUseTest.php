@@ -89,7 +89,7 @@ class SanitizerUseTest extends SanitizerTestCase {
 		$inner = $this->sanitize_inner( '<USE href="https://example.org/sprite.svg#icon"/><rect/>' );
 
 		$this->assertSame( '<rect></rect>', $inner );
-		$this->assertSame( array( "Suspicious 'USE'" ), $this->issue_messages() );
+		$this->assertSame( array( "Suspicious tag 'USE'" ), $this->issue_messages() );
 	}
 
 	/**
@@ -197,37 +197,20 @@ class SanitizerUseTest extends SanitizerTestCase {
 	}
 
 	/**
-	 * Pins a defect in Resolver::processReferences(): references are only
-	 * recorded for `<use>` elements that are direct children of an
-	 * identified element. Wrapping them in a `<g>` hides them, and the same
-	 * 1000-fold expansion as above passes untouched.
-	 *
-	 * Fixed when the `<use>` of `b1` is removed; this test then fails and
-	 * becomes a regression test asserting that.
-	 *
-	 * @group pinned
+	 * Wrapping the `<use>` elements in a `<g>` doesn't hide the expansion.
 	 */
-	public function test_expansion_through_wrapped_use_elements_is_not_detected_pinned_for_deferred_fix() {
+	public function test_expansion_through_wrapped_use_elements_is_detected() {
 		$inner = $this->sanitize_inner( $this->bomb( 10, '', true ) );
 
-		$this->assertStringContainsString( '<use href="#b1">', $inner );
-		$this->assertSame( 31, substr_count( $inner, '<use ' ) );
-		$this->assertSame( array(), $this->issue_messages() );
+		$this->assertStringNotContainsString( '<use href="#b1">', $inner );
+		$this->assertSame( 30, substr_count( $inner, '<use ' ) );
+		$this->assertSame( array( "Suspicious 'use'" ), $this->issue_messages() );
 	}
 
 	/**
-	 * Pins a defect in Resolver::processReferences(): its query uses the
-	 * `xlink` prefix without registering it. One `<use>` without `href` in
-	 * a document that does not declare the prefix makes the query fail, PHP
-	 * raises a warning per affected element, no reference is recorded and
-	 * the same 1000-fold expansion as above passes untouched.
-	 *
-	 * Fixed when no warning is raised and the `<use>` of `b1` is removed;
-	 * this test then fails and becomes a regression test asserting that.
-	 *
-	 * @group pinned
+	 * Neither does a `<use>` without `href` when `xlink` isn't declared.
 	 */
-	public function test_expansion_is_not_detected_when_the_xlink_prefix_is_not_declared_pinned_for_deferred_fix() {
+	public function test_expansion_is_detected_when_the_xlink_prefix_is_not_declared() {
 		$warnings = array();
 		set_error_handler(
 			function ( $number, $message ) use ( &$warnings ) {
@@ -242,10 +225,9 @@ class SanitizerUseTest extends SanitizerTestCase {
 			restore_error_handler();
 		}
 
-		$this->assertCount( 3, $warnings );
-		$this->assertStringContainsString( 'foreach', $warnings[0] );
-		$this->assertStringContainsString( '<use href="#b1">', $inner );
-		$this->assertSame( array(), $this->issue_messages() );
+		$this->assertSame( array(), $warnings );
+		$this->assertStringNotContainsString( '<use href="#b1">', $inner );
+		$this->assertSame( array( "Suspicious 'use'" ), $this->issue_messages() );
 	}
 
 	/* Nesting limit. */
@@ -307,10 +289,9 @@ class SanitizerUseTest extends SanitizerTestCase {
 	}
 
 	/**
-	 * Pins a defect in Sanitizer::startClean(): its in_array() check against
-	 * the removal list is not strict and any two DOMElement objects compare
-	 * equal. One loop anywhere in the document therefore removes every
-	 * `<use>`, including valid ones that have nothing to do with the loop.
+	 * Pins a defect in Sanitizer::removeUnsafeUseElements(): in_array() isn't
+	 * strict and DOMElements compare equal, so one loop removes every `<use>`
+	 * in the document, valid ones included.
 	 *
 	 * Fixed when the two `<use>` of `r` are kept while the loop is still
 	 * broken; this test then fails and becomes a regression test for that.
@@ -327,40 +308,17 @@ class SanitizerUseTest extends SanitizerTestCase {
 		$this->assertSame( array_fill( 0, 4, "Invalid 'use'" ), $this->issue_messages() );
 	}
 
-	/**
-	 * Pins a defect in Resolver::determineInvalidSubjects(): a `<use>` that
-	 * references itself is recognised but nothing is listed for removal, so
-	 * the element stays in the output.
-	 *
-	 * Fixed when the element is removed; this test then fails and becomes a
-	 * regression test asserting `<rect></rect>`.
-	 *
-	 * @group pinned
-	 */
-	public function test_use_referencing_itself_is_kept_pinned_for_deferred_fix() {
+	public function test_removes_use_referencing_itself() {
 		$inner = $this->sanitize_inner( '<use id="a" href="#a"/><rect/>' );
 
-		$this->assertSame( '<use id="a" href="#a"></use><rect></rect>', $inner );
-		$this->assertSame( array(), $this->issue_messages() );
+		$this->assertSame( '<rect></rect>', $inner );
+		$this->assertSame( array( "Invalid 'use'" ), $this->issue_messages() );
 	}
 
-	/**
-	 * Pins a defect in Resolver::processReferences(): a `<use>` that
-	 * references its own parent makes Subject::addUse() throw, and nothing
-	 * between there and the caller of sanitize() catches the exception.
-	 *
-	 * Fixed when sanitize() returns for this document; this test then fails
-	 * and becomes a regression test asserting the `<use>` is removed.
-	 *
-	 * @group pinned
-	 */
-	public function test_use_referencing_its_parent_throws_logic_exception_pinned_for_deferred_fix() {
-		$sanitizer = $this->plugin_sanitizer();
+	public function test_removes_use_referencing_its_parent() {
+		$inner = $this->sanitize_inner( '<g id="a"><use href="#a"/></g>' );
 
-		$this->expectException( LogicException::class );
-		$this->expectExceptionCode( 1570713416 );
-		$this->expectExceptionMessage( 'Cannot add self usage' );
-
-		$sanitizer->sanitize( $this->svg( '<g id="a"><use href="#a"/></g>' ) );
+		$this->assertSame( '<g id="a"></g>', $inner );
+		$this->assertSame( array( "Invalid 'use'" ), $this->issue_messages() );
 	}
 }
