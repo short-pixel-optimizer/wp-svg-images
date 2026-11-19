@@ -456,14 +456,6 @@ if( ! class_exists('WPSVG') ){
 		 * and `animateTransform`; `animate` and `set` reach this method only
 		 * when a site adds them through the `WPSVG_setAllowedTags` filter.
 		 *
-		 * @todo The loop over getElementsByTagName( '*' ) walks a live list,
-		 *       which PHP before 8.3 searches from the start at every step:
-		 *       the time grows with the square of the number of elements
-		 *       (about a minute for 60,000 elements on PHP 7.4 and 8.1, a
-		 *       fraction of a second from 8.3), enough to time out an upload.
-		 *       Select the animation elements with one DOMXPath query on the
-		 *       lower-cased local name; its result is a fixed list.
-		 *
 		 * @param string $svg_code Sanitized SVG markup.
 		 * @return string|false The markup unchanged when it is empty, only
 		 *                      whitespace, or has nothing to remove; the
@@ -493,8 +485,13 @@ if( ! class_exists('WPSVG') ){
 			libxml_use_internal_errors( $internal_errors );
 			if( ! $loaded || ! $dom->documentElement ) return false;
 
+			// One query for the animation elements only. Its result is a fixed list: a live list
+			// such as getElementsByTagName( '*' ) is searched from the start at every step before PHP 8.3.
+			$xpath = new DOMXPath( $dom );
+			$animations = $xpath->query( "//*[contains( '|" . implode( '|', array_keys( $allowed ) ) . "|', concat( '|', translate( local-name(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz' ), '|' ) )]" );
+
 			$unsafe = array();
-			foreach( $dom->getElementsByTagName( '*' ) as $element ){
+			foreach( $animations as $element ){
 				$name = strtolower( $element->localName );
 				if( ! isset( $allowed[ $name ] ) ) continue;
 				foreach( $element->attributes as $attribute ){
