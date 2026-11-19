@@ -132,24 +132,39 @@ class AttachmentTest extends WPSVGIntegrationTestCase {
 
 		$this->assertSame( 0, $metadata['width'] );
 		$this->assertSame( 0, $metadata['height'] );
-		$this->assertStringContainsString( 'simplexml_load_file()', implode( "\n", $warnings ) );
+		$this->assertStringContainsString( 'file_get_contents(', implode( "\n", $warnings ) );
 	}
 
-	/**
-	 * Pins the defect in WPSVG::svg_dimensions(): a gzipped SVG is not
-	 * decoded, so its attachment gets zero dimensions. When fixed, the
-	 * metadata holds the 30 x 20 the file declares.
-	 *
-	 * @group pinned
-	 */
-	public function test_gzipped_svg_attachment_gets_zero_dimensions_pinned_for_deferred_fix() {
+	public function test_gzipped_svg_attachment_gets_the_dimensions_of_the_decoded_file() {
 		$id = $this->gzipped_svg_attachment();
 
 		$metadata = wp_get_attachment_metadata( $id );
 
 		$this->assertSame( 'image/svg+xml', get_post_mime_type( $id ) );
-		$this->assertSame( 0, $metadata['width'] );
-		$this->assertSame( 0, $metadata['height'] );
+		$this->assertSame( 30.0, $metadata['width'] );
+		$this->assertSame( 20.0, $metadata['height'] );
+	}
+
+	public function test_gzipped_svg_upload_raises_no_warning() {
+		$this->set_permissions( array( 'author' => 1 ) );
+		$this->log_in_as( 'author' );
+
+		list( $id, $warnings ) = $this->with_warnings_captured(
+			function () {
+				return $this->media_upload( gzencode( '<svg ' . self::NS . ' width="30" height="20"><rect/></svg>' ), 'image.svgz' );
+			}
+		);
+
+		$this->assertIsInt( $id );
+		$this->assertSame( array(), $warnings );
+	}
+
+	public function test_image_block_of_a_gzipped_svg_gets_its_dimensions() {
+		$id = $this->gzipped_svg_attachment();
+
+		$html = do_blocks( $this->image_block( $id ) );
+
+		$this->assertStringContainsString( '<img width="30" height="20" src=', $html );
 	}
 
 	/**
@@ -406,8 +421,8 @@ class AttachmentTest extends WPSVGIntegrationTestCase {
 	 * @group pinned
 	 * @dataProvider provide_attachments_without_readable_dimensions
 	 */
-	public function test_image_block_gets_zero_width_and_height_when_dimensions_are_unknown_pinned_for_deferred_fix( $kind ) {
-		$id = 'gzipped' === $kind ? $this->gzipped_svg_attachment() : $this->svg_attachment( '' );
+	public function test_image_block_gets_zero_width_and_height_when_dimensions_are_unknown_pinned_for_deferred_fix( $root_attributes ) {
+		$id = $this->svg_attachment( $root_attributes );
 
 		list( $html ) = $this->with_warnings_captured(
 			function () use ( $id ) {
@@ -420,8 +435,8 @@ class AttachmentTest extends WPSVGIntegrationTestCase {
 
 	public function provide_attachments_without_readable_dimensions() {
 		return array(
-			'SVG without size and viewBox' => array( 'plain' ),
-			'gzipped SVG'                  => array( 'gzipped' ),
+			'SVG without size and viewBox' => array( '' ),
+			'SVG sized in percentages'     => array( 'width="100%" height="100%"' ),
 		);
 	}
 }

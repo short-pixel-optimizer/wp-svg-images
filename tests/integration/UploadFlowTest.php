@@ -155,7 +155,7 @@ class UploadFlowTest extends WPSVGIntegrationTestCase {
 
 		$this->assertIsInt( $id );
 		$this->assertSame( $content, $this->stored_content( $id ) );
-		$this->assertStringContainsString( 'simplexml_load_file()', implode( "\n", $warnings ), 'Reading the dimensions raises PHP warnings' );
+		$this->assertStringContainsString( 'simplexml_load_string()', implode( "\n", $warnings ), 'Reading the dimensions raises PHP warnings' );
 	}
 
 	/**

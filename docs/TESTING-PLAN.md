@@ -81,7 +81,7 @@ checkpoint. The decisions from §7 are recorded there.
 | Other plugins bundling `enshrined/svg-sanitize` (e.g. Safe SVG) | `class_exists` guard | Their sanitizer version is used instead of the bundled one |
 | HTMLPurifier | Not used by the bundled sanitizer; shipped by other plugins (WP All Import, older Safe SVG) | CDATA handling must give the same output whether or not another plugin loads it |
 | Git Updater | Plugin header only | Update source; no runtime code |
-| External HTTP | `wp_prepare_attachment_for_js` falls back to `simplexml_load_file($response['url'])` when the file is missing locally | Remote fetch of the attachment URL (offloaded media / CDN setups) |
+| External HTTP | `wp_prepare_attachment_for_js` falls back to reading `$response['url']` with `file_get_contents()` when the file is missing locally | Remote fetch of the attachment URL (offloaded media / CDN setups) |
 | PHP extensions | `fileinfo` (`mime_content_type`), `libxml`/`dom`/`simplexml`, `zlib` (`gzdecode`/`gzencode`), optional `mbstring` | Hard runtime requirements, none declared |
 
 ---

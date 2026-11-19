@@ -149,17 +149,38 @@ class WPSVGDimensionsTest extends WPSVGTestCase {
 	}
 
 	/**
-	 * Pins a defect described in the svg_dimensions() docblock: gzipped
-	 * content is not decoded, so an `.svgz` file has no dimensions (and PHP
-	 * raises parser warnings).
-	 *
-	 * Fixed when 100 x 50 is returned; this test then fails and becomes a
-	 * regression test for that.
-	 *
-	 * @group pinned
+	 * @dataProvider provide_gzipped_svg
 	 */
-	public function test_gzipped_file_has_zero_dimensions_pinned_for_deferred_fix() {
-		$path       = $this->temporary_file( 'sized.svgz', gzencode( '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50"/>' ) );
+	public function test_gzipped_file_is_decoded_and_measured_without_warnings( $svg, $name, $width, $height ) {
+		$path       = $this->temporary_file( $name, gzencode( $svg ) );
+		$plugin     = $this->plugin();
+		$dimensions = null;
+
+		$warnings = $this->warnings_raised_by(
+			function () use ( $plugin, $path, &$dimensions ) {
+				$dimensions = $plugin->svg_dimensions( $path );
+			}
+		);
+
+		$this->assertSame( $width, $dimensions->width );
+		$this->assertSame( $height, $dimensions->height );
+		$this->assertSame( array(), $warnings );
+	}
+
+	public function provide_gzipped_svg() {
+		return array(
+			'width and height'       => array( '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50"/>', 'sized.svgz', 100.0, 50.0 ),
+			'viewBox only'           => array( '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 20"/>', 'sized.svgz', 30.0, 20.0 ),
+			'gzipped but named .svg' => array( '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50"/>', 'sized.svg', 100.0, 50.0 ),
+			'no size at all'         => array( '<svg xmlns="http://www.w3.org/2000/svg"/>', 'sized.svgz', 0, 0 ),
+		);
+	}
+
+	/**
+	 * @dataProvider provide_gzipped_content_without_dimensions
+	 */
+	public function test_gzipped_file_that_cannot_be_decoded_or_parsed_returns_zeros_with_a_warning( $content, $warning ) {
+		$path       = $this->temporary_file( 'broken.svgz', $content );
 		$plugin     = $this->plugin();
 		$dimensions = null;
 
@@ -172,12 +193,21 @@ class WPSVGDimensionsTest extends WPSVGTestCase {
 		$this->assertSame( 0, $dimensions->width );
 		$this->assertSame( 0, $dimensions->height );
 		$this->assertNotEmpty( $warnings );
+		$this->assertStringContainsString( $warning, $warnings[0] );
+	}
+
+	public function provide_gzipped_content_without_dimensions() {
+		return array(
+			'gzip header without data' => array( "\x1f\x8b\x08 not gzip data", 'gzdecode' ),
+			'truncated gzip data'      => array( substr( gzencode( str_repeat( '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50"/>', 20 ) ), 0, 30 ), 'gzdecode' ),
+			'gzipped text'             => array( gzencode( 'not an svg' ), 'simplexml_load_string' ),
+		);
 	}
 
 	/**
 	 * @dataProvider provide_unreadable_content
 	 */
-	public function test_returns_zeros_and_raises_warnings_for_a_file_that_cannot_be_parsed( $content ) {
+	public function test_returns_zeros_and_raises_warnings_for_a_file_that_cannot_be_parsed( $content, $warning ) {
 		$path       = $this->temporary_file( 'unreadable.svg', $content );
 		$plugin     = $this->plugin();
 		$dimensions = null;
@@ -191,21 +221,36 @@ class WPSVGDimensionsTest extends WPSVGTestCase {
 		$this->assertSame( 0, $dimensions->width );
 		$this->assertSame( 0, $dimensions->height );
 		$this->assertNotEmpty( $warnings );
-		$this->assertStringContainsString( 'simplexml_load_file', $warnings[0] );
+		$this->assertStringContainsStringIgnoringCase( $warning, $warnings[0] );
+	}
+
+	public function test_returns_zeros_without_a_warning_for_an_empty_file() {
+		$path       = $this->temporary_file( 'empty.svg', '' );
+		$plugin     = $this->plugin();
+		$dimensions = null;
+
+		$warnings = $this->warnings_raised_by(
+			function () use ( $plugin, $path, &$dimensions ) {
+				$dimensions = $plugin->svg_dimensions( $path );
+			}
+		);
+
+		$this->assertSame( 0, $dimensions->width );
+		$this->assertSame( 0, $dimensions->height );
+		$this->assertSame( array(), $warnings );
 	}
 
 	public function provide_unreadable_content() {
 		return array(
-			'truncated xml' => array( '<svg xmlns="http://www.w3.org/2000/svg" width="7"' ),
-			'plain text'    => array( 'not an svg' ),
-			'empty file'    => array( '' ),
-			'missing file'  => array( null ),
+			'truncated xml' => array( '<svg xmlns="http://www.w3.org/2000/svg" width="7"', 'simplexml_load_string' ),
+			'plain text'    => array( 'not an svg', 'simplexml_load_string' ),
+			'missing file'  => array( null, 'failed to open stream' ),
 		);
 	}
 
 	/**
-	 * With libxml internal errors enabled, which the sanitizer leaves on
-	 * after it has run, the same failure is silent.
+	 * With libxml internal errors enabled, which an older copy of the
+	 * sanitizer leaves on after it has run, the same failure is silent.
 	 */
 	public function test_unparsable_file_raises_no_warning_while_libxml_internal_errors_are_enabled() {
 		$path       = $this->temporary_file( 'unreadable.svg', '<svg' );

@@ -1094,7 +1094,7 @@ if( ! class_exists('WPSVG') ){
 		 * this covers attachments without metadata. Dimensions are read from
 		 * the attached file, or from the attachment URL when the file does not
 		 * exist locally (offloaded media), which makes a remote request
-		 * through libxml. Orientation is `landscape` when width > height and
+		 * through file_get_contents(). Orientation is `landscape` when width > height and
 		 * `portrait` otherwise, including for square images.
 		 *
 		 * @param array    $response   Attachment data for JS.
@@ -1127,28 +1127,33 @@ if( ! class_exists('WPSVG') ){
 		 * Uses the root `width` and `height` attributes when both are present
 		 * and not percentages, parsed with floatval() so units are dropped
 		 * (`10em` gives 10). When either value is still zero and a `viewBox`
-		 * exists, both are taken from its third and fourth values. Returns
-		 * zeros when the file cannot be read or parsed; PHP warnings are then
-		 * raised by simplexml_load_file() unless libxml internal errors are
-		 * enabled. The bundled sanitizer restores that setting when it is
-		 * done, so a gzipped upload raises these warnings; an older copy of
-		 * the library leaves internal errors enabled, which hides them for
-		 * the rest of the request. The root element does not have to be
-		 * `<svg>`, a negative value is returned as it is, and a `width`
+		 * exists, both are taken from its third and fourth values. Gzipped
+		 * content (detected by is_gzipped()) is decoded first, so an `.svgz`
+		 * file is read like any other.
+		 *
+		 * Returns zeros when the file cannot be read, decoded or parsed. A
+		 * PHP warning is then raised by file_get_contents() or gzdecode(),
+		 * and by simplexml_load_string() unless libxml internal errors are
+		 * enabled: the bundled sanitizer restores that setting when it is
+		 * done, an older copy of the library leaves it enabled, which hides
+		 * the parser's warnings for the rest of the request. An empty file
+		 * gives zeros without a warning. The root element does not have to
+		 * be `<svg>`, a negative value is returned as it is, and a `width`
 		 * without a `height` (or the reverse) is ignored.
 		 *
 		 * @todo The `viewBox` is split on single spaces only, so a viewBox
 		 *       using commas or repeated whitespace (both valid) yields wrong
 		 *       or zero dimensions. Split on preg_split( '/[\s,]+/', trim( ... ) ).
-		 * @todo A gzipped file (`.svgz`) is not decoded, so its dimensions are
-		 *       always zero. Decode gzip content (see is_gzipped()) and parse
-		 *       it with simplexml_load_string().
 		 *
 		 * @param string $svg Path or URL of the SVG file.
 		 * @return object{width: float|int, height: float|int}
 		 */
 		function svg_dimensions( $svg ){
-			$svg = simplexml_load_file( $svg );
+			$svg_code = file_get_contents( $svg );
+			if( $svg_code !== false && $this->is_gzipped( $svg_code ) ){
+				$svg_code = gzdecode( $svg_code );
+			}
+			$svg = $svg_code === false ? false : simplexml_load_string( $svg_code );
 			$width = 0;
 			$height = 0;
 			if( $svg ){

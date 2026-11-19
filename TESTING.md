@@ -358,7 +358,7 @@ List them with `bin/test.sh all --group pinned`. Lifecycle rules: `CLAUDE.md`,
 - **PHP warnings can depend on earlier tests.** The bundled sanitizer
   restores libxml's internal error handling when it is done, but an older
   copy loaded by another plugin (a `compat` scenario) switches it on and
-  never off, which silences later `simplexml_load_file()` warnings; the base
+  never off, which silences later `simplexml_load_string()` warnings; the base
   test cases reset it after each test. Wrap calls that may warn in
   `with_warnings_captured()`.
 - **`active_plugins` is fixed by the test bootstrap** through a

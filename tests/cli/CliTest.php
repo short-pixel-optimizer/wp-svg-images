@@ -151,25 +151,17 @@ class CliTest extends CliTestCase {
 		$this->assertSame( self::SANITIZED_SVG, $this->stored_content( $result['id'] ) );
 	}
 
-	/**
-	 * Pins the defect in WPSVG::svg_dimensions(): the gzipped SVG is stored
-	 * sanitized, but its dimensions are stored as zeros and the parser's
-	 * warnings get printed. Fixed when it's 30 x 20 and nothing is printed.
-	 *
-	 * @group pinned
-	 */
-	public function test_gzipped_import_stores_no_dimensions_pinned_for_deferred_fix() {
+	public function test_gzipped_import_is_stored_sanitized_with_its_dimensions_and_prints_nothing() {
 		$this->activate_plugin( array( 'author' => 1 ) );
 		$this->create_user( 'anna', 'author' );
 
 		$result = $this->import( $this->file_to_import( gzencode( self::DIRTY_SVG ), 'logo.svgz' ), 'anna' );
 
 		$this->assertSame( self::SANITIZED_SVG, gzdecode( $this->stored_content( $result['id'] ) ), 'The file itself is sanitized' );
-		$this->assertStringContainsString( 'simplexml_load_file(): ', $result['stderr'] );
-		$this->assertStringContainsString( "Start tag expected, '<' not found", $result['stderr'] );
+		$this->assertSame( '', $result['stderr'] );
 		$metadata = json_decode( $this->wp_ok( 'post', 'meta', 'get', (string) $result['id'], '_wp_attachment_metadata', '--format=json' ), true );
-		$this->assertSame( 0, $metadata['width'] );
-		$this->assertSame( 0, $metadata['height'] );
+		$this->assertEquals( 30, $metadata['width'] );
+		$this->assertEquals( 20, $metadata['height'] );
 	}
 
 	/**
