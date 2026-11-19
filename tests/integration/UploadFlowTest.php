@@ -306,6 +306,20 @@ class UploadFlowTest extends WPSVGIntegrationTestCase {
 		$this->assertSame( self::SANITIZED_SVG, $this->stored_content( $data['id'] ) );
 	}
 
+	/**
+	 * @dataProvider provide_rest_upload_kinds
+	 */
+	public function test_rest_upload_on_a_fresh_install_is_stored_sanitized( $kind ) {
+		$this->set_permissions( null );
+		$this->log_in_as( 'author' );
+
+		$response = 'raw' === $kind ? $this->rest_raw_upload( self::DIRTY_SVG, 'fresh.svg' ) : $this->rest_multipart_upload( self::DIRTY_SVG, 'fresh.svg' );
+
+		$this->assertSame( 201, $response->get_status() );
+		$this->assertSame( 'image/svg+xml', $response->get_data()['mime_type'] );
+		$this->assertSame( self::SANITIZED_SVG, $this->stored_content( $response->get_data()['id'] ) );
+	}
+
 	public function test_rest_multipart_upload_reports_the_dimensions() {
 		$this->set_permissions( array( 'author' => 1 ) );
 		$this->log_in_as( 'author' );

@@ -202,6 +202,88 @@ class UploadSanitizeTest extends WPSVGIntegrationTestCase {
 		$this->assertSame( $content, file_get_contents( $file['tmp_name'] ) );
 	}
 
+	/**
+	 * What the sanitizer refuses to process is a refused upload, never an
+	 * error that ends the request.
+	 *
+	 * @dataProvider provide_content_the_sanitizer_refuses
+	 */
+	public function test_content_the_sanitizer_refuses_is_refused_and_kept_as_it_is( $content, $name ) {
+		$this->set_permissions( array( 'author' => 1 ) );
+		$this->log_in_as( 'author' );
+		$file = $this->uploaded_file( $content, $name );
+
+		$result = $this->prefilter( $file );
+
+		$this->assertSame( 'This SVG cannot be sanitized!', $result['error'] );
+		$this->assertSame( $content, file_get_contents( $file['tmp_name'] ) );
+	}
+
+	public function provide_content_the_sanitizer_refuses() {
+		$svg        = '<svg ' . self::SVG_NS . '><rect/></svg>';
+		$xhtml      = '<html xmlns="http://www.w3.org/1999/xhtml"><script>alert(1)</script></html>';
+		$attributes = '';
+		for ( $number = 0; $number <= 4096; $number++ ) {
+			$attributes .= " data-a$number=\"1\"";
+		}
+
+		return array(
+			'file that ends inside a tag'       => array( '<svg ' . self::SVG_NS . '><rect', 'image.svg' ),
+			'a single opening bracket'          => array( '<', 'image.svg' ),
+			'the text 0'                        => array( '0', 'image.svg' ),
+			'only a document type'              => array( '<!DOCTYPE svg>', 'image.svg' ),
+			'only a php tag'                    => array( '<?php echo 1; ?>', 'image.svg' ),
+			'entity declared in the file'       => array( '<!DOCTYPE svg [<!ENTITY ns "http://www.w3.org/2000/svg">]><svg xmlns="&ns;"><rect/></svg>', 'image.svg' ),
+			'encoding that cannot be checked'   => array( '<?xml version="1.0" encoding="UTF-7"?>' . $svg, 'image.svg' ),
+			'svg root in another namespace'     => array( '<svg xmlns="http://example.org/ns"><rect/></svg>', 'image.svg' ),
+			'more attributes than the limit'    => array( '<svg ' . self::SVG_NS . "><rect$attributes/></svg>", 'image.svg' ),
+			'gzipped page that is not an svg'   => array( gzencode( $xhtml ), 'image.svgz' ),
+			'gzipped file ending inside a tag'  => array( gzencode( '<svg ' . self::SVG_NS . '><rect' ), 'image.svgz' ),
+		);
+	}
+
+	/**
+	 * Another plugin can load an older copy of the library first, and that
+	 * copy throws where the bundled one returns false.
+	 *
+	 * @dataProvider provide_throwables
+	 */
+	public function test_sanitizer_that_throws_gives_a_refused_upload( $throwable ) {
+		$this->set_permissions( array( 'author' => 1 ) );
+		$this->log_in_as( 'author' );
+		$file     = $this->uploaded_file( self::DIRTY_SVG );
+		$plugin   = $this->plugin();
+		$original = $plugin->sanitizer;
+
+		$plugin->sanitizer = new class( $throwable ) extends \enshrined\svgSanitize\Sanitizer {
+			private $throwable;
+
+			public function __construct( $throwable ) {
+				parent::__construct();
+				$this->throwable = $throwable;
+			}
+
+			public function sanitize( $dirty ) {
+				throw $this->throwable;
+			}
+		};
+		try {
+			$result = $this->prefilter( $file );
+		} finally {
+			$plugin->sanitizer = $original;
+		}
+
+		$this->assertSame( 'This SVG cannot be sanitized!', $result['error'] );
+		$this->assertSame( self::DIRTY_SVG, file_get_contents( $file['tmp_name'] ) );
+	}
+
+	public function provide_throwables() {
+		return array(
+			'exception' => array( new LogicException( 'Cannot add self usage' ) ),
+			'error'     => array( new TypeError( 'type' ) ),
+		);
+	}
+
 	public function test_svg_that_is_not_well_formed_is_accepted_from_an_unrestricted_role() {
 		$this->set_permissions( array( 'administrator' => 2 ) );
 		$this->log_in_as( 'administrator' );

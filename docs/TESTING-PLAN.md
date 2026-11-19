@@ -14,10 +14,10 @@ checkpoint. The decisions from §7 are recorded there.
 | Language | PHP (plugin + bundled library), one small jQuery script, one minified CSS file |
 | Framework | WordPress plugin API (actions and filters); no Composer, no autoloader, no build step |
 | Declared runtime | `readme.txt`: *Requires at least* WP 3.0.1, *Requires PHP* 7.4, *Tested up to* WP 7.0 |
-| Actual runtime floor | PHP 7.1+ (nullable type hints in `svg-sanitizer/Exceptions/NestingException.php`); WP 5.0+ for the `render_block` integration |
+| Actual runtime floor | PHP 7.4, as declared (the bundled library itself needs 7.1: return types, `yield from`, `\Throwable`); WP 5.0+ for the `render_block` integration |
 | Entry point | `wp-svg-images.php` — plugin header, `require_once` of the bundled sanitizer, three classes, `new WPSVG()` at load time |
 | Other PHP | `upsell.php` — template partial included from the settings page with `$this` bound to `WPSVG` |
-| Bundled library | `svg-sanitizer/` — a vendored copy of `enshrined/svg-sanitize` (namespace `enshrined\svgSanitize`), version not recorded anywhere in the tree |
+| Bundled library | `svg-sanitizer/` — a vendored copy of `enshrined/svg-sanitize` 1.1.1 (namespace `enshrined\svgSanitize`): the upstream `src/` folder without `svg-scanner.php`, kept as upstream; the version is recorded in `CLAUDE.md` |
 | Assets | `assets/js/spio-upsell.js`, `assets/css/spio-upsell.css`, `assets/images/shortpixel-image-optimiser.svg` |
 | i18n | Text domain `wp-svg-images` (the wordpress.org slug), `languages/wp-svg-images.pot` |
 | Dependency tooling | None. `.gitignore` already lists `vendor`, `composer.lock`, `/wordpress/`, `/travis_output/`, `.env.testing` (leftovers of an earlier test setup that is not in the tree) |
@@ -104,19 +104,13 @@ Counted as "documented" when a docblock immediately precedes the declaration.
 Where documentation contradicts the code (to be reconciled in Phase 2 as
 present-tense docs plus `@todo` where the code looks wrong — no code changes):
 
-1. `readme.txt` *Requires PHP: 5.6.40* — the bundled library uses PHP 7.1 syntax.
-2. `readme.txt` *Requires at least: 3.0.1* — the block integration needs WP 5.0.
-3. `readme.txt` "Malicious SVG/XML files are rejected from upload" — malicious
+1. `readme.txt` *Requires at least: 3.0.1* — the block integration needs WP 5.0.
+2. `readme.txt` "Malicious SVG/XML files are rejected from upload" — malicious
    content is stripped and the file is accepted; rejection happens only when the
-   XML cannot be parsed.
-4. Settings page preselects *enable sanitized SVG upload* for roles that have no
-   saved value, while the upload filters treat a missing value as disabled.
-5. `Sanitizer::removeNonPrintableCharacters()` documents `@return bool`, returns
+   file cannot be sanitized (not well-formed XML, a root other than `<svg>`,
+   or input the library refuses to parse).
+3. `Sanitizer::removeNonPrintableCharacters()` documents `@return bool`, returns
    a string.
-6. `Sanitizer` has no mention of its HTMLPurifier dependency; `XPath`'s
-   constructor throws `LogicException` without saying so.
-7. `languages/wpsvg.pot` is stale: line references no longer match and at
-   least one current string (`Temp file is not be set!`) is absent.
 
 ---
 

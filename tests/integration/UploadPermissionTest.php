@@ -143,6 +143,76 @@ class UploadPermissionTest extends WPSVGIntegrationTestCase {
 		);
 	}
 
+	/**
+	 * The defaults follow the capability, not a list of role names.
+	 */
+	public function test_fresh_install_allows_svg_for_a_custom_role_that_can_upload_files() {
+		add_role( 'wpsvg_uploader', 'Uploader', array( 'read' => true, 'upload_files' => true ) );
+		add_role( 'wpsvg_reader', 'Reader', array( 'read' => true ) );
+		$this->set_permissions( null );
+
+		try {
+			$this->log_in_as( 'wpsvg_uploader' );
+			$this->assertArrayHasKey( 'svg', get_allowed_mime_types() );
+			$this->assertSame( 1, $this->plugin()->role_permission( 'wpsvg_uploader' ) );
+
+			$this->log_in_as( 'wpsvg_reader' );
+			$this->assertArrayNotHasKey( 'svg', get_allowed_mime_types() );
+			$this->assertSame( 0, $this->plugin()->role_permission( 'wpsvg_reader' ) );
+		} finally {
+			// WordPress keeps roles in memory, beyond the database rollback.
+			remove_role( 'wpsvg_uploader' );
+			remove_role( 'wpsvg_reader' );
+		}
+	}
+
+	public function test_fresh_install_allows_svg_when_one_of_two_roles_can_upload_files() {
+		$this->set_permissions( null );
+		$this->log_in_as( 'subscriber', array( 'author' ) );
+
+		$this->assertArrayHasKey( 'svg', get_allowed_mime_types() );
+	}
+
+	/**
+	 * The defaults end with the first save: a role the saved settings do
+	 * not mention is disabled from then on.
+	 *
+	 * @dataProvider provide_first_saves_without_the_editor
+	 */
+	public function test_first_save_ends_the_fresh_install_defaults( $saved ) {
+		$this->set_permissions( null );
+		$this->log_in_as( 'editor' );
+		$this->assertArrayHasKey( 'svg', get_allowed_mime_types() );
+
+		$this->set_permissions( $saved );
+
+		$this->assertArrayNotHasKey( 'svg', get_allowed_mime_types() );
+		$this->assertSame( 0, $this->plugin()->role_permission( 'editor' ) );
+	}
+
+	public function provide_first_saves_without_the_editor() {
+		return array(
+			'another role saved' => array( array( 'administrator' => 1 ) ),
+			'empty list saved'   => array( array() ),
+		);
+	}
+
+	/**
+	 * Settings saved before the defaults existed keep their meaning.
+	 */
+	public function test_saved_settings_are_not_affected_by_the_fresh_install_defaults() {
+		$this->set_permissions(
+			array(
+				'administrator' => 2,
+				'editor'        => 0,
+			)
+		);
+
+		$this->assertSame( 2, $this->plugin()->role_permission( 'administrator' ) );
+		$this->assertSame( 0, $this->plugin()->role_permission( 'editor' ) );
+		$this->assertSame( 0, $this->plugin()->role_permission( 'author' ) );
+	}
+
 	public function test_unknown_role_gets_no_permission_on_a_fresh_install() {
 		$this->set_permissions( null );
 
@@ -204,6 +274,26 @@ class UploadPermissionTest extends WPSVGIntegrationTestCase {
 
 		$this->assertSame( 'svgz', $result['ext'] );
 		$this->assertSame( 'image/svg+xml', $result['type'] );
+	}
+
+	/**
+	 * @dataProvider provide_svg_file_names
+	 */
+	public function test_file_named_svg_is_typed_as_svg_on_a_fresh_install( $filename, $extension ) {
+		$this->set_permissions( null );
+		$this->log_in_as( 'author' );
+
+		$result = $this->filetype_of( self::DIRTY_SVG, $filename );
+
+		$this->assertSame( $extension, $result['ext'] );
+		$this->assertSame( 'image/svg+xml', $result['type'] );
+	}
+
+	public function provide_svg_file_names() {
+		return array(
+			'svg'  => array( 'logo.svg', 'svg' ),
+			'svgz' => array( 'logo.svgz', 'svgz' ),
+		);
 	}
 
 	/**

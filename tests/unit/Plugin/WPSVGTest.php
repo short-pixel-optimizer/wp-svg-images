@@ -139,6 +139,130 @@ class WPSVGTest extends WPSVGTestCase {
 		$this->assertFalse( $plugin->settings );
 	}
 
+	/* role_permission(). */
+
+	/**
+	 * @dataProvider provide_saved_role_values
+	 */
+	public function test_role_permission_is_the_saved_value_as_an_integer( $saved, $expected ) {
+		Functions\expect( 'get_role' )->never();
+		$plugin           = $this->plugin();
+		$plugin->settings = array( 'role_editor' => $saved );
+
+		$this->assertSame( $expected, $plugin->role_permission( 'editor' ) );
+	}
+
+	public function provide_saved_role_values() {
+		return array(
+			'0 disabled'              => array( 0, 0 ),
+			'1 sanitized'             => array( 1, 1 ),
+			'2 unrestricted'          => array( 2, 2 ),
+			'numeric string 2'        => array( '2', 2 ),
+			'numeric string 0'        => array( '0', 0 ),
+			'value outside the range' => array( 7, 7 ),
+			'text'                    => array( 'yes', 0 ),
+			'true'                    => array( true, 1 ),
+			'null'                    => array( null, 0 ),
+		);
+	}
+
+	/**
+	 * Once the settings are saved, the fresh-install defaults are over: a
+	 * role without a value is disabled, whatever it is allowed to do.
+	 *
+	 * @dataProvider provide_saved_settings_without_the_role
+	 */
+	public function test_role_permission_is_zero_for_a_role_missing_from_saved_settings( $settings ) {
+		Functions\expect( 'get_role' )->never();
+		$plugin           = $this->plugin();
+		$plugin->settings = $settings;
+
+		$this->assertSame( 0, $plugin->role_permission( 'author' ) );
+	}
+
+	public function provide_saved_settings_without_the_role() {
+		return array(
+			'other roles saved'   => array( array( 'role_administrator' => 2, 'role_editor' => 1 ) ),
+			'empty list saved'    => array( array() ),
+			'slug without prefix' => array( array( 'author' => 2 ) ),
+		);
+	}
+
+	public function test_role_permission_is_zero_before_the_settings_are_loaded() {
+		Functions\expect( 'get_role' )->never();
+		$plugin = $this->plugin();
+
+		$this->assertNull( $plugin->settings );
+		$this->assertSame( 0, $plugin->role_permission( 'administrator' ) );
+	}
+
+	/**
+	 * @dataProvider provide_upload_capability
+	 */
+	public function test_role_permission_without_saved_settings_follows_the_upload_capability( $can_upload, $expected ) {
+		$role = \Mockery::mock();
+		$role->shouldReceive( 'has_cap' )->once()->with( 'upload_files' )->andReturn( $can_upload );
+		Functions\expect( 'get_role' )->once()->with( 'shop_manager' )->andReturn( $role );
+		$plugin           = $this->plugin();
+		$plugin->settings = false;
+
+		$this->assertSame( $expected, $plugin->role_permission( 'shop_manager' ) );
+	}
+
+	public function provide_upload_capability() {
+		return array(
+			'role can upload files'    => array( true, 1 ),
+			'role cannot upload files' => array( false, 0 ),
+		);
+	}
+
+	public function test_role_permission_without_saved_settings_is_zero_for_a_role_that_does_not_exist() {
+		Functions\expect( 'get_role' )->once()->with( 'gone' )->andReturn( null );
+		$plugin           = $this->plugin();
+		$plugin->settings = false;
+
+		$this->assertSame( 0, $plugin->role_permission( 'gone' ) );
+	}
+
+	/**
+	 * An option that holds something else than a list of roles counts as
+	 * not saved.
+	 *
+	 * @dataProvider provide_stored_values_that_are_not_a_list
+	 */
+	public function test_role_permission_treats_a_stored_value_that_is_not_a_list_as_not_saved( $stored ) {
+		$role = \Mockery::mock();
+		$role->shouldReceive( 'has_cap' )->with( 'upload_files' )->andReturn( true );
+		Functions\when( 'get_role' )->justReturn( $role );
+		$plugin           = $this->plugin();
+		$plugin->settings = $stored;
+
+		$this->assertSame( 1, $plugin->role_permission( 'editor' ) );
+	}
+
+	public function provide_stored_values_that_are_not_a_list() {
+		return array(
+			'empty string' => array( '' ),
+			'text'         => array( 'role_editor' ),
+			'integer'      => array( 2 ),
+		);
+	}
+
+	/**
+	 * No role is unrestricted before a save, so nothing skips sanitization.
+	 */
+	public function test_role_permission_without_saved_settings_is_never_unrestricted() {
+		$role = \Mockery::mock();
+		$role->shouldReceive( 'has_cap' )->andReturn( true );
+		Functions\when( 'get_role' )->justReturn( $role );
+		$plugin           = $this->plugin();
+		$plugin->settings = false;
+
+		foreach ( array( 'administrator', 'editor', 'author' ) as $slug ) {
+			$this->assertSame( 1, $plugin->role_permission( $slug ) );
+		}
+	}
+
 	public function test_plugins_loaded_loads_the_text_domain_from_the_languages_folder() {
 		Functions\expect( 'load_plugin_textdomain' )
 			->once()
@@ -239,6 +363,54 @@ class WPSVGTest extends WPSVGTestCase {
 
 		$this->assertSame( '', $this->plugin()->wp_all_import_svgs( '', $path ) );
 		$this->assertFileDoesNotExist( $path );
+	}
+
+	public function test_wp_all_import_svgs_deletes_a_gzipped_file_that_cannot_be_sanitized() {
+		$path = $this->temporary_file( 'logo.svgz', gzencode( '<html xmlns="http://www.w3.org/1999/xhtml"><script>x</script></html>' ) );
+		Functions\expect( 'wp_delete_file' )->once()->with( $path )->andReturnUsing( 'unlink' );
+
+		$this->assertSame( '', $this->plugin()->wp_all_import_svgs( 'image/svg+xml', $path ) );
+		$this->assertFileDoesNotExist( $path );
+	}
+
+	/**
+	 * WP All Import can apply the filter more than once to one file.
+	 */
+	public function test_wp_all_import_svgs_gives_the_same_result_on_a_file_it_already_sanitized() {
+		$path   = $this->temporary_file( 'logo.svg', '<svg xmlns="http://www.w3.org/2000/svg" onload="a()"><rect/></svg>' );
+		$plugin = $this->plugin();
+		Functions\expect( 'wp_delete_file' )->never();
+
+		$this->assertSame( 'image/svg+xml', $plugin->wp_all_import_svgs( '', $path ) );
+		$first = file_get_contents( $path );
+		$this->assertSame( 'image/svg+xml', $plugin->wp_all_import_svgs( 'image/svg+xml', $path ) );
+
+		$this->assertSame( '<svg xmlns="http://www.w3.org/2000/svg"><rect></rect></svg>', $first );
+		$this->assertSame( $first, file_get_contents( $path ) );
+	}
+
+	/**
+	 * @dataProvider provide_paths_that_are_not_files
+	 */
+	public function test_wp_all_import_svgs_gives_the_type_without_touching_a_path_that_is_not_a_file( $path ) {
+		Functions\expect( 'wp_delete_file' )->never();
+
+		$warnings = $this->warnings_raised_by(
+			function () use ( $path ) {
+				$this->assertSame( 'image/svg+xml', $this->plugin()->wp_all_import_svgs( 'image/svg+xml', $path ) );
+			}
+		);
+
+		$this->assertSame( array(), $warnings );
+	}
+
+	public function provide_paths_that_are_not_files() {
+		return array(
+			'missing file' => array( sys_get_temp_dir() . '/wpsvg-no-such-folder/logo.svg' ),
+			'directory'    => array( sys_get_temp_dir() ),
+			'address'      => array( 'https://example.org/logo.svg' ),
+			'empty path'   => array( '' ),
+		);
 	}
 
 	public function test_wp_all_import_svgs_leaves_a_file_of_another_type_untouched() {

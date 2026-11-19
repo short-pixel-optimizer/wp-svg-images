@@ -269,6 +269,30 @@ class SettingsPageTest extends WPSVGIntegrationTestCase {
 		$this->assertStringNotContainsString( 'Up&lt;script&gt;', $html );
 	}
 
+	/**
+	 * Pins the defect in WPSVG::admin_options_page(): once the settings are
+	 * saved, a role created afterwards has no value. The page shows it as
+	 * "sanitized" while WPSVG::role_permission() treats it as disabled.
+	 *
+	 * Fixed when the page shows "disable" for that role (or its uploads are
+	 * accepted); this test then fails and becomes a regression test for
+	 * the chosen behaviour.
+	 *
+	 * @group pinned
+	 */
+	public function test_role_created_after_a_save_is_shown_as_sanitized_but_cannot_upload_pinned_for_deferred_fix() {
+		$this->set_permissions( array( 'administrator' => 1 ) );
+		add_role( 'wpsvg_uploader', 'Uploader', array( 'read' => true, 'upload_files' => true ) );
+		$this->open_admin_as( 'administrator' );
+
+		$html = $this->render_page();
+
+		$this->assertSame( array( '1' ), $this->selected_values( $html, 'wpsvg_uploader' ) );
+		$this->assertSame( 0, $this->plugin()->role_permission( 'wpsvg_uploader' ) );
+		$this->log_in_as( 'wpsvg_uploader' );
+		$this->assertArrayNotHasKey( 'svg', get_allowed_mime_types() );
+	}
+
 	/* Saving. */
 
 	public function test_submitting_the_form_replaces_the_stored_permissions() {

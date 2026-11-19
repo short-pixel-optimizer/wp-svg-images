@@ -21,8 +21,9 @@ defined( 'ABSPATH' ) ||	exit;
  * that loads earlier and ships the library through Composer (Safe SVG, for
  * example) supplies every sanitizer class and the bundled files are not read
  * at all. A plugin that loads later uses the bundled copy instead. The two
- * cases behave differently wherever the copies differ: the defects documented
- * in svg-sanitizer/ apply to the bundled copy only.
+ * cases behave differently wherever the copies differ: an older copy lacks
+ * the fixes of the bundled release and can throw where the bundled one
+ * returns false, which WPSVG::sanitize() treats the same way.
  */
 if( ! class_exists('enshrined\svgSanitize\Sanitizer') ){
 	require_once( 'svg-sanitizer/data/AttributeInterface.php' );
@@ -181,7 +182,16 @@ if( ! class_exists('WPSVG') ){
 		 * type is sanitized first; if that fails, the file is deleted (as WP All
 		 * Import does itself) and no type is returned. Role settings don't apply
 		 * here: every import is sanitized. Paths that aren't files are skipped.
+		 * WP All Import applies the filter to its own copy of the imported
+		 * file, in the uploads folder, right before it creates the attachment.
 		 *
+		 * @todo After a file is deleted here WP All Import still creates the
+		 *       attachment, with an empty MIME type and the path of the
+		 *       deleted file. Current releases sanitize `.svg` files
+		 *       themselves and skip them first, so this happens with older
+		 *       releases and with `.svgz`. The filter cannot stop the
+		 *       attachment; delete it on `wp_all_import_add_attachment` when
+		 *       its file is missing.
 		 * @todo The extension check is case-sensitive, so `logo.SVG` keeps an
 		 *       empty MIME type. Compare against strtolower( $image_filepath ).
 		 *
@@ -434,9 +444,25 @@ if( ! class_exists('WPSVG') ){
 		 * `data:`, ignoring case, spaces and control characters, whatever
 		 * the target.
 		 *
+		 * The bundled library does part of this before the markup gets here:
+		 * it removes an `attributeName` that contains `href` and any of these
+		 * attributes whose value starts with a script or non-image `data:`
+		 * URL. Such an element arrives without the attribute and is kept,
+		 * harmless, often with no attributes left. The checks here still
+		 * cover the other targets, a script URL later in a list of values
+		 * (`0;javascript:...`) and older copies of the library.
+		 *
 		 * The default tag whitelist allows `animateColor`, `animateMotion`
 		 * and `animateTransform`; `animate` and `set` reach this method only
 		 * when a site adds them through the `WPSVG_setAllowedTags` filter.
+		 *
+		 * @todo The loop over getElementsByTagName( '*' ) walks a live list,
+		 *       which PHP before 8.3 searches from the start at every step:
+		 *       the time grows with the square of the number of elements
+		 *       (about a minute for 60,000 elements on PHP 7.4 and 8.1, a
+		 *       fraction of a second from 8.3), enough to time out an upload.
+		 *       Select the animation elements with one DOMXPath query on the
+		 *       lower-cased local name; its result is a fixed list.
 		 *
 		 * @param string $svg_code Sanitized SVG markup.
 		 * @return string|false The markup unchanged when it is empty, only
@@ -1031,9 +1057,12 @@ if( ! class_exists('WPSVG') ){
 		 * exists, both are taken from its third and fourth values. Returns
 		 * zeros when the file cannot be read or parsed; PHP warnings are then
 		 * raised by simplexml_load_file() unless libxml internal errors are
-		 * enabled. The root element does not have to be `<svg>`, a negative
-		 * value is returned as it is, and a `width` without a `height` (or the
-		 * reverse) is ignored.
+		 * enabled. The bundled sanitizer restores that setting when it is
+		 * done, so a gzipped upload raises these warnings; an older copy of
+		 * the library leaves internal errors enabled, which hides them for
+		 * the rest of the request. The root element does not have to be
+		 * `<svg>`, a negative value is returned as it is, and a `width`
+		 * without a `height` (or the reverse) is ignored.
 		 *
 		 * @todo The `viewBox` is split on single spaces only, so a viewBox
 		 *       using commas or repeated whitespace (both valid) yields wrong

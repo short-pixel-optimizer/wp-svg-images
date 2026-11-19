@@ -122,6 +122,48 @@ class WpAllImportTest extends CompatTestCase {
 		}
 	}
 
+	/**
+	 * Pins the defect in WPSVG::wp_all_import_svgs(): the filter deletes a
+	 * file it cannot sanitize and returns no type, but WP All Import goes on
+	 * and creates the attachment, which then has no type and no file.
+	 *
+	 * Fixed when the import creates no attachment; this test then fails and
+	 * becomes a regression test for that.
+	 *
+	 * @group pinned
+	 */
+	public function test_import_of_a_gzipped_file_that_cannot_be_sanitized_leaves_an_empty_attachment_pinned_for_deferred_fix() {
+		$xhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><script>alert(1)</script></html>';
+
+		$id = $this->import( 'page.svgz', gzencode( $xhtml ), 'files' );
+
+		$this->assertIsInt( $id );
+		$this->assertSame( 'attachment', get_post_type( $id ) );
+		$this->assertSame( '', get_post_mime_type( $id ) );
+		$this->assertStringEndsWith( '/page.svgz', get_attached_file( $id ) );
+		$this->assertFileDoesNotExist( get_attached_file( $id ) );
+	}
+
+	/**
+	 * The same defect for a plain `.svg`, with the older WP All Import
+	 * only: the current one sanitizes the file itself and gives up first.
+	 *
+	 * @group pinned
+	 */
+	public function test_import_of_a_file_that_cannot_be_sanitized_leaves_an_empty_attachment_with_the_older_release_pinned_for_deferred_fix() {
+		$xhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><script>alert(1)</script></html>';
+
+		$id = $this->import( 'page.svg', $xhtml, 'files' );
+
+		if ( ! $this->uses_previous_versions() ) {
+			$this->assertFalse( $id );
+			return;
+		}
+		$this->assertIsInt( $id );
+		$this->assertSame( '', get_post_mime_type( $id ) );
+		$this->assertFileDoesNotExist( get_attached_file( $id ) );
+	}
+
 	public function provide_attachment_kinds() {
 		return array(
 			'image' => array( 'images' ),

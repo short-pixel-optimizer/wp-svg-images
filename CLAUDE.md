@@ -97,8 +97,12 @@ Upload flow for a user whose role allows SVG:
 - **File format.** `wp-svg-images.php`, `upsell.php` and the JS asset use CRLF
   line endings and ASCII only; keep both. Indent with tabs in plugin code and
   four spaces in `svg-sanitizer/`.
-- **Vendored code.** Do not reformat `svg-sanitizer/`; documentation-only
-  changes are allowed there.
+- **Vendored code.** `svg-sanitizer/` stays as upstream released it, so an
+  update is a plain copy of the upstream `src/` folder: do not reformat it
+  and do not document it further. The only additions are `@todo` comments
+  for open defects; carry them over on an update while the defect is still
+  there. What the plugin relies on is described by the tests in
+  `tests/unit/Sanitizer/`.
 
 ## Non-negotiable rules
 
