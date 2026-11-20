@@ -2,10 +2,10 @@
 Contributors: shortpixel, kubiq
 Donate link: https://www.paypal.me/resizeImage
 Tags: svg, svg support, svg upload, sanitization
-Requires at least: 3.0.1
+Requires at least: 5.0
 Requires PHP: 7.4
-Tested up to: 7.0
-Stable tag: 4.5
+Tested up to: 7.2
+Stable tag: 4.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -68,6 +68,35 @@ function my_custom_allowed_svg_attributes( $attributes ){
 
 
 == Changelog ==
+
+= 4.6 =
+
+🔒 The Security & Sanitization Update
+
+Release Date: November 20, 2026
+
+🔒 Security
+
+* Sanitization by File Type: Every file accepted as an SVG (`.svg` or `.svgz`) is now sanitized based on its extension, no matter what the content detection reports. Previously, a file starting with a comment or a line break, as well as any `.svgz` file, could skip the sanitization. First reported by [@kta1kri](https://github.com/kta1kri) and also safely disclosed by Suresh Pantha via the WPScan team.
+* SVG Animations: Animation elements can no longer change a link target or another URL attribute into a script, preventing a potential stored cross-site scripting issue in Safari and other WebKit browsers, safely disclosed by Pierre Rudloff via the WPScan team.
+* All Upload Paths Covered: SVG files added through the REST API, sideloads (for example images imported from a URL) and WP-CLI imports are now sanitized as well.
+* WP All Import: SVG and SVGZ files imported with WP All Import are now always sanitized, and a file that cannot be sanitized is no longer kept.
+* Sanitizer Library Update: Updated the bundled SVG sanitizer to version 1.1.1, which brings several security fixes and much faster processing of large files.
+
+⚙️ Improvements
+
+* Works Right After Activation: Sanitized SVG uploads are now available as soon as the plugin is activated, for the roles that can upload files, exactly as the settings page shows. Before, the settings had to be saved once.
+* Clear Upload Errors: A file that cannot be sanitized (for example a broken file or a web page renamed to `.svg`) is now refused with a clear message, instead of ending the upload with an error.
+* Faster Uploads of Large SVGs: Checking large SVG files with many elements is now much faster, especially on PHP versions older than 8.3.
+* Minimum Requirements: The plugin now declares its minimum requirements (WordPress 5.0 and PHP 7.4), so WordPress will no longer install or update it on older, unsupported versions.
+* Translations: The plugin now uses its WordPress.org slug as text domain, so the translations from translate.wordpress.org are loaded automatically. Several texts were also corrected.
+
+🛠️ Fixes
+
+* SVGZ Dimensions: Compressed SVG files (`.svgz`) now get their correct width and height, and no longer trigger PHP warnings on upload.
+* CDATA Sections: SVG files that contain CDATA sections (for example inline styles) are now sanitized correctly.
+
+We highly recommend updating to this version to keep your site safe and secure! 💪🔐
 
 = 4.5 =
 

@@ -3,13 +3,14 @@
 	Plugin Name:		WP SVG Images
 	Plugin URI:		https://shortpixel.com/
 	Description:		Full SVG Media support in WordPress
-	Version:	  	4.5
+	Version:	  	4.6
 	Author:		  	ShortPixel
 	Author URI:		https://shortpixel.com/
  	GitHub Plugin URI:	https://github.com/short-pixel-optimizer/wp-svg-images
 	Primary Branch: 	main
 	Text Domain:		wp-svg-images
 	Domain Path:		/languages
+	Requires at least:	5.0
 	Requires PHP:		7.4
 */
 
