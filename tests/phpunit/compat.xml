@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<!-- Suite `compat`: real WordPress with third-party plugins. bin/test.sh runs it once per scenario of tests/compat/scenarios.php and passes the scenario's test folder. -->
+<phpunit
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:noNamespaceSchemaLocation="../vendor/phpunit/phpunit/phpunit.xsd"
+	bootstrap="../bootstrap/compat.php"
+	cacheResult="false"
+	colors="true"
+	failOnRisky="true"
+	failOnWarning="true"
+>
+</phpunit>

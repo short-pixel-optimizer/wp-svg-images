@@ -1,0 +1,52 @@
+# Advisory only: never blocks a merge or a release. The test gate is tests.yml.
+name: Lint (advisory)
+
+# Same triggers as tests.yml: pushes to `updates`, pull requests into `updates`
+# or `main`, and manual runs.
+on:
+  push:
+    branches: [updates]
+  pull_request:
+    branches: [updates, main]
+  workflow_dispatch:
+
+# Pull requests: a newer push cancels the stale run. Pushes and manual runs
+# each keep their own run.
+concurrency:
+  group: lint-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  php-syntax:
+    name: PHP ${{ matrix.php }} syntax
+    # The release pull request from `updates` was already checked by the push.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'updates' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.3', '8.5']
+    steps:
+      - uses: actions/checkout@v4
+      - name: php -l on every PHP file
+        run: |
+          docker run --rm -v "$PWD":/app -w /app php:${{ matrix.php }}-cli sh -c '
+            status=0
+            for f in $(find . -name "*.php" -not -path "./tests/vendor/*" -not -path "./tests/.cache/*"); do
+              php -l "$f" > /dev/null || status=1
+            done
+            exit $status'
+
+  shell:
+    name: ShellCheck
+    # The release pull request from `updates` was already checked by the push.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref != 'updates' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - run: shellcheck bin/test.sh tests/bin/*.sh

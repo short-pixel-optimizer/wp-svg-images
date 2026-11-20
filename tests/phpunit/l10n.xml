@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<!-- Suite `l10n`: translations. Real WordPress as in the `integration` suite, whose bootstrap it shares. Run through bin/test.sh. -->
+<phpunit
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:noNamespaceSchemaLocation="../vendor/phpunit/phpunit/phpunit.xsd"
+	bootstrap="../bootstrap/integration.php"
+	cacheResult="false"
+	colors="true"
+	failOnRisky="true"
+	failOnWarning="true"
+>
+	<testsuites>
+		<testsuite name="l10n">
+			<directory suffix="Test.php">../l10n</directory>
+		</testsuite>
+	</testsuites>
+</phpunit>

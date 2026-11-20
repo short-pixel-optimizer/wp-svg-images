@@ -1,0 +1,21 @@
+{
+	"plugins": {
+		"beaver-builder-lite-version": "2.11.1.2",
+		"gutenberg": "24.4.1",
+		"safe-svg": "2.5.2",
+		"shortpixel-image-optimiser": "6.6.1",
+		"wp-all-import": "4.2.0"
+	},
+	"previous_plugins": {
+		"beaver-builder-lite-version": "2.7.4.5",
+		"gutenberg": "18.5.0",
+		"safe-svg": "2.2.6",
+		"wp-all-import": "3.7.9"
+	},
+	"libraries": {
+		"htmlpurifier": {
+			"version": "4.19.1",
+			"url": "https://github.com/ezyang/htmlpurifier/archive/refs/tags/v4.19.1.zip"
+		}
+	}
+}

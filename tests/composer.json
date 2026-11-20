@@ -1,0 +1,17 @@
+{
+    "name": "shortpixel/wp-svg-images-tests",
+    "description": "Test tooling for WP SVG Images; not part of the released plugin.",
+    "type": "project",
+    "license": "GPL-2.0-or-later",
+    "require-dev": {
+        "phpunit/phpunit": "^9.6",
+        "yoast/phpunit-polyfills": "^2.0",
+        "brain/monkey": "^2.6"
+    },
+    "config": {
+        "platform": {
+            "php": "7.4.33"
+        },
+        "sort-packages": true
+    }
+}

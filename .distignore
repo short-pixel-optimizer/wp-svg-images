@@ -1,0 +1,15 @@
+/.git
+/.github
+/.cursor
+/.gitignore
+/.gitattributes
+/.distignore
+/bin
+/docs
+/tests
+/AGENTS.md
+/CLAUDE.md
+/TESTING.md
+/composer.json
+/composer.lock
+/vendor

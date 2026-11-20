@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
+  <rect x="10" y="10" width="30" height="30" fill="#c00"/>
+  <circle cx="70" cy="25" r="15" fill="none" stroke="#06c" stroke-width="2"/>
+  <ellipse cx="25" cy="70" rx="15" ry="10"/>
+  <line x1="50" y1="50" x2="90" y2="90" stroke="#000"/>
+  <polyline points="50,60 60,70 70,60" fill="none" stroke="#000"/>
+  <polygon points="60,80 70,95 50,95"/>
+  <path d="M10 90 Q 25 60 40 90 Z" transform="translate(2 2)"/>
+</svg>
