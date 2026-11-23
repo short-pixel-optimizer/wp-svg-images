@@ -178,6 +178,23 @@ class WPSVGSanitizeTest extends WPSVGTestCase {
 		$this->assertSame( $content, file_get_contents( $path ) );
 	}
 
+	/**
+	 * This suite runs without WP_DEBUG; see UploadSanitizeTest for the entries
+	 * written with it.
+	 */
+	public function test_refused_file_is_not_logged_without_wp_debug() {
+		$log      = $this->temporary_file( 'error.log', '' );
+		$previous = ini_set( 'error_log', $log );
+		try {
+			$result = $this->plugin()->sanitize( $this->temporary_file( 'broken.svg', '<svg' ) );
+		} finally {
+			ini_set( 'error_log', $previous );
+		}
+
+		$this->assertFalse( $result );
+		$this->assertSame( '', file_get_contents( $log ) );
+	}
+
 	public function provide_throwables() {
 		return array(
 			'exception' => array( new LogicException( 'Cannot add self usage' ) ),
