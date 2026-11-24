@@ -19,3 +19,7 @@ rules. This file repeats only the non-negotiable rules.
 7. Never run two test stacks at the same time.
 8. Document before you test.
 9. Report failures, skips and partial work faithfully.
+10. Existing tests are read-only by default: never change, loosen or delete a
+    test to make a run green; name the cause of every failing test, ask
+    before changing anything but a flipped pin or a pure rename, and run
+    `bin/check-test-changes.sh` before the hand-off.

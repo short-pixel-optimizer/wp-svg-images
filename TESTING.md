@@ -308,6 +308,48 @@ A test that asserts a known defect's current behaviour:
 List them with `bin/test.sh all --group pinned`. Lifecycle rules: `CLAUDE.md`,
 "Documenting defects".
 
+## Changing existing tests
+
+Existing tests are read-only by default; the full rule, with the closed list
+of valid reasons and of changes that are never a fix, is "Changing existing
+tests" in `CLAUDE.md`. In short:
+
+- A red test is assumed to have found a defect. Name its cause (code wrong,
+  intended behaviour changed, test wrong) before touching an assertion.
+- A flipped pin and a pure rename may be changed directly. Anything else is
+  reported first and decided by the maintainer.
+- Never loosen or delete an assertion, widen an allow-list, raise a timeout or
+  add a skip to get a green run.
+- A removed test names its replacement, or says there is none.
+- A changed test is shown to fail against the old or broken behaviour.
+- A stored snapshot, baseline or golden file is refreshed only for an intended
+  change, one test at a time, and the change is reviewed.
+
+The guard:
+
+```bash
+bin/check-test-changes.sh                              # the uncommitted work against HEAD
+bin/check-test-changes.sh --per-commit <base> <head>   # every commit, as CI checks a push
+bin/check-test-changes.sh --range <base> <head>        # one verdict, as CI checks a pull request
+```
+
+It reports deleted or renamed test files, removed or edited tests and
+assertions, added skips and changed snapshots under `tests/`. New tests and
+new assertions pass. It reads the diff, not the meaning: an edited assertion
+is reported even when the edit is a rename, and that is the point, because a
+reported change needs a stated reason.
+
+In CI (`.github/workflows/test-guard.yml`) a pushed commit that trips the
+guard passes only with a line `Tests-Changed: <reason>` in its commit message,
+for example:
+
+```bash
+git commit -m "Flip the pin of a fixed defect" -m "Tests-Changed: the pinned defect is fixed"
+```
+
+A pull request that trips it passes only once a maintainer applies the
+`test-changes-approved` label.
+
 ## CI
 
 - All workflows run on every push to `updates`, on every pull request into
@@ -322,6 +364,10 @@ List them with `bin/test.sh all --group pinned`. Lifecycle rules: `CLAUDE.md`,
   `bin/test.sh e2e` on the oldest and the newest cell (PHP 7.4 / WP 6.4 and
   PHP 8.5 / latest), both blocking, and uploads the report with screenshots
   and traces of failed tests.
+- `.github/workflows/test-guard.yml` — runs `bin/check-test-changes.sh`: a
+  change to an existing test needs a `Tests-Changed: <reason>` line (push) or
+  the `test-changes-approved` label (pull request). See "Changing existing
+  tests".
 - `.github/workflows/lint.yml` — advisory only: `php -l` on every supported PHP
   version and ShellCheck on the scripts.
 
