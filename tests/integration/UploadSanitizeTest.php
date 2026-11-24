@@ -284,6 +284,79 @@ class UploadSanitizeTest extends WPSVGIntegrationTestCase {
 		);
 	}
 
+	/**
+	 * The test site runs with WP_DEBUG on.
+	 *
+	 * @dataProvider provide_refusals_and_their_reason
+	 */
+	public function test_refused_file_is_logged_with_the_reason_on_one_line( $content, $sanitizer_result, $reason ) {
+		$path = $this->uploaded_file( $content )['tmp_name'];
+
+		list( $result, $log ) = $this->sanitize_and_read_the_log( $path, $sanitizer_result );
+
+		$this->assertFalse( $result );
+		$this->assertSame( 1, substr_count( $log, "\n" ) );
+		$this->assertStringContainsString( 'WP SVG Images refused a file: {"file":"' . $path . '","reason":', $log );
+		$this->assertStringContainsString( $reason, $log );
+	}
+
+	public function provide_refusals_and_their_reason() {
+		return array(
+			'refused by the sanitizer'  => array( '<svg xmlns="http://example.org/ns"/>', null, 'Root element is not in the SVG namespace' ),
+			'not well formed'           => array( $this->svg( '<rect>' ), null, 'Opening and ending tag mismatch' ),
+			'exception'                 => array( self::DIRTY_SVG, new LogicException( "Cannot add\nself usage" ), 'LogicException: Cannot add\nself usage' ),
+			'error, invalid utf-8'      => array( self::DIRTY_SVG, new TypeError( "type \xff" ), 'TypeError: type ' ),
+			'gzip that cannot be read'  => array( "\x1f\x8b\x08 this is not a gzip stream", null, 'The gzip content cannot be decoded' ),
+			'output that is not xml'    => array( self::DIRTY_SVG, '<svg', 'The sanitized markup cannot be parsed' ),
+		);
+	}
+
+	public function test_sanitized_file_is_not_logged() {
+		list( $result, $log ) = $this->sanitize_and_read_the_log( $this->uploaded_file( self::DIRTY_SVG )['tmp_name'], null );
+
+		$this->assertTrue( $result );
+		$this->assertSame( '', $log );
+	}
+
+	/**
+	 * @param string                $path             File to sanitize.
+	 * @param Throwable|string|null $sanitizer_result What the sanitizer throws
+	 *                                                or returns, null to use
+	 *                                                the bundled one.
+	 * @return array{0: bool, 1: string} Result of WPSVG::sanitize() and what it
+	 *                                   wrote to the PHP error log.
+	 */
+	private function sanitize_and_read_the_log( $path, $sanitizer_result ) {
+		$plugin = new WPSVG();
+		if ( null !== $sanitizer_result ) {
+			$plugin->sanitizer = new class( $sanitizer_result ) extends \enshrined\svgSanitize\Sanitizer {
+				private $result;
+
+				public function __construct( $result ) {
+					parent::__construct();
+					$this->result = $result;
+				}
+
+				public function sanitize( $dirty ) {
+					if ( $this->result instanceof Throwable ) {
+						throw $this->result;
+					}
+					return $this->result;
+				}
+			};
+		}
+		$log      = $this->uploaded_file( '' )['tmp_name'];
+		$previous = ini_set( 'error_log', $log );
+		try {
+			// gzdecode() raises a warning of its own.
+			$result = @$plugin->sanitize( $path );
+		} finally {
+			ini_set( 'error_log', $previous );
+		}
+
+		return array( $result, file_get_contents( $log ) );
+	}
+
 	public function test_svg_that_is_not_well_formed_is_accepted_from_an_unrestricted_role() {
 		$this->set_permissions( array( 'administrator' => 2 ) );
 		$this->log_in_as( 'administrator' );

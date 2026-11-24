@@ -440,7 +440,7 @@ if( ! class_exists('WPSVG') ){
 		 * the method fails when the content cannot be decoded, when the
 		 * sanitizer refuses it (see Sanitizer::sanitize()) or when it throws,
 		 * which older copies of the library can do. A failed file is left as
-		 * it was.
+		 * it was and the reason is logged by refuse().
 		 * An empty file is "sanitized" to an empty string and reported as
 		 * success. Gzip content that cannot be decoded also raises a PHP
 		 * warning from gzdecode().
@@ -460,7 +460,7 @@ if( ! class_exists('WPSVG') ){
 				$svg_code = gzdecode( $svg_code );
 
 				if( $svg_code === false ){
-					return false;
+					return $this->refuse( $file, 'The gzip content cannot be decoded' );
 				}
 			}
 
@@ -469,16 +469,18 @@ if( ! class_exists('WPSVG') ){
 
 			try{
 				$clean_svg_code = $this->sanitizer->sanitize( $svg_code );
+
+				if( $clean_svg_code === false ){
+					return $this->refuse( $file, $this->sanitizer->getXmlIssues() ); // throws in copies without that method
+				}
 			}catch( \Throwable $e ){
-				return false;
+				return $this->refuse( $file, get_class( $e ) . ': ' . $e->getMessage() );
 			}
 
-			if( $clean_svg_code !== false ){
-				$clean_svg_code = $this->clean_animations( $clean_svg_code );
-			}
+			$clean_svg_code = $this->clean_animations( $clean_svg_code );
 
 			if( $clean_svg_code === false ){
-				return false;
+				return $this->refuse( $file, 'The sanitized markup cannot be parsed' );
 			}
 
 			if( $is_zipped ){
@@ -488,6 +490,24 @@ if( ! class_exists('WPSVG') ){
 			file_put_contents( $file, $clean_svg_code );
 
 			return true;
+		}
+
+		/**
+		 * Logs why sanitize() refuses a file, when WP_DEBUG is on.
+		 *
+		 * The entry is one line of JSON, so a path or reason that holds line
+		 * breaks cannot forge another entry.
+		 *
+		 * @param string       $file   Path of the refused file.
+		 * @param string|array $reason A message, or the sanitizer's issues,
+		 *                             which also list what it removed.
+		 * @return false
+		 */
+		private function refuse( $file, $reason ){
+			if( defined( 'WP_DEBUG' ) && WP_DEBUG ){
+				error_log( 'WP SVG Images refused a file: ' . json_encode( array( 'file' => $file, 'reason' => $reason ), JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE ) );
+			}
+			return false;
 		}
 
 		/**
